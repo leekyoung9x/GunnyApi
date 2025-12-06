@@ -9,4 +9,5 @@ public interface IUserRepository : IBaseRepository<User>
     Task<IEnumerable<User>> GetActiveUsersAsync();
     Task<bool> UsernameExistsAsync(string username);
     Task<bool> EmailExistsAsync(string email);
+    Task<int?> LoginAsync(string applicationName, string userName, string password);
 }

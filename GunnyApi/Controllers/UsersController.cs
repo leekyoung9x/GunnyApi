@@ -96,6 +96,31 @@ public class UsersController : ControllerBase
     }
 
     /// <summary>
+    /// Login API - Đăng nhập bằng username và password
+    /// </summary>
+    [HttpPost("login")]
+    public async Task<IActionResult> Login([FromBody] LoginRequest request)
+    {
+        try
+        {
+            var result = await _userService.LoginAsync(request);
+            
+            if (result.Success)
+            {
+                return Ok(result);
+            }
+            else
+            {
+                return Unauthorized(result);
+            }
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Có lỗi xảy ra", error = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Tạo user mới
     /// </summary>
     [HttpPost]

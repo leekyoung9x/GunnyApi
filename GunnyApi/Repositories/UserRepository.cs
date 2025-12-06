@@ -110,4 +110,31 @@ public class UserRepository : BaseRepository<User>, IUserRepository
         var count = await connection.ExecuteScalarAsync<int>(sql, new { Email = email });
         return count > 0;
     }
+
+    public async Task<int?> LoginAsync(string applicationName, string userName, string password)
+    {
+        // Validate inputs để chống SQL injection
+        SqlInjectionProtection.ValidateInputs(
+            (applicationName, nameof(applicationName)),
+            (userName, nameof(userName)),
+            (password, nameof(password))
+        );
+
+        using var connection = _connectionFactory.CreateConnection();
+        
+        var parameters = new DynamicParameters();
+        parameters.Add("@ApplicationName", applicationName);
+        parameters.Add("@UserName", userName);
+        parameters.Add("@Password", password);
+        parameters.Add("@UserId", dbType: System.Data.DbType.Int32, direction: System.Data.ParameterDirection.Output);
+
+        await connection.ExecuteAsync(
+            "Mem_Users_Accede",
+            parameters,
+            commandType: System.Data.CommandType.StoredProcedure
+        );
+
+        var userId = parameters.Get<int?>("@UserId");
+        return userId;
+    }
 }

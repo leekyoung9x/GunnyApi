@@ -7,4 +7,5 @@ public interface IUserService : IBaseService<User>
 {
     Task<User?> GetByUsernameAsync(string username);
     Task<IEnumerable<User>> GetActiveUsersAsync();
+    Task<LoginResponse> LoginAsync(LoginRequest request);
 }

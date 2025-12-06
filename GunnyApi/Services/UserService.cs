@@ -68,4 +68,81 @@ public class UserService : BaseService<User>, IUserService
     {
         return await _userRepository.GetActiveUsersAsync();
     }
+
+    public async Task<LoginResponse> LoginAsync(LoginRequest request)
+    {
+        // Set default ApplicationName if not provided
+        if (string.IsNullOrWhiteSpace(request.ApplicationName))
+        {
+            request.ApplicationName = "DanDanTang";
+        }
+
+        if (string.IsNullOrWhiteSpace(request.UserName))
+        {
+            return new LoginResponse 
+            { 
+                Success = false, 
+                Message = "Username không được rỗng" 
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Password))
+        {
+            return new LoginResponse 
+            { 
+                Success = false, 
+                Message = "Password không được rỗng" 
+            };
+        }
+
+        try
+        {
+            // Validate SQL injection
+            SqlInjectionProtection.ValidateInputs(
+                (request.ApplicationName, nameof(request.ApplicationName)),
+                (request.UserName, nameof(request.UserName)),
+                (request.Password, nameof(request.Password))
+            );
+
+            var userId = await _userRepository.LoginAsync(
+                request.ApplicationName, 
+                request.UserName, 
+                request.Password
+            );
+
+            if (userId.HasValue && userId.Value > 0)
+            {
+                return new LoginResponse 
+                { 
+                    Success = true, 
+                    UserId = userId.Value,
+                    Message = "Đăng nhập thành công" 
+                };
+            }
+            else
+            {
+                return new LoginResponse 
+                { 
+                    Success = false, 
+                    Message = "Tên đăng nhập hoặc mật khẩu không đúng" 
+                };
+            }
+        }
+        catch (SecurityException ex)
+        {
+            return new LoginResponse 
+            { 
+                Success = false, 
+                Message = ex.Message 
+            };
+        }
+        catch (Exception ex)
+        {
+            return new LoginResponse 
+            { 
+                Success = false, 
+                Message = "Có lỗi xảy ra khi đăng nhập: " + ex.Message 
+            };
+        }
+    }
 }
