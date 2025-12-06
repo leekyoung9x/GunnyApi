@@ -1,6 +1,8 @@
 using System.Text;
 using GunnyApi.Infrastructure.Database;
+using GunnyApi.Infrastructure.Http;
 using GunnyApi.Infrastructure.Security;
+using GunnyApi.Infrastructure.Settings;
 using GunnyApi.Repositories;
 using GunnyApi.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -17,6 +19,13 @@ builder.Services.AddSingleton<IDbConnectionFactory, SqlConnectionFactory>();
 // JWT Configuration
 builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+
+// Game Settings Configuration
+builder.Services.Configure<GameSettings>(builder.Configuration.GetSection("GameSettings"));
+
+// HttpClient Factory và Service
+builder.Services.AddHttpClient();
+builder.Services.AddScoped<IHttpClientService, HttpClientService>();
 
 // JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>();
