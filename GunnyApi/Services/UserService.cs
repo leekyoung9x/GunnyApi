@@ -9,11 +9,13 @@ namespace GunnyApi.Services;
 public class UserService : BaseService<User>, IUserService
 {
     private readonly IUserRepository _userRepository;
+    private readonly IJwtTokenService _jwtTokenService;
 
-    public UserService(IUserRepository userRepository) 
+    public UserService(IUserRepository userRepository, IJwtTokenService jwtTokenService) 
         : base(userRepository)
     {
         _userRepository = userRepository;
+        _jwtTokenService = jwtTokenService;
     }
 
     protected override async Task ValidateEntityAsync(User entity)
@@ -112,10 +114,27 @@ public class UserService : BaseService<User>, IUserService
 
             if (userId.HasValue && userId.Value > 0)
             {
+                // Lấy thông tin user để generate token
+                var user = await _userRepository.GetByIdAsync(userId.Value);
+                if (user == null)
+                {
+                    return new LoginResponse
+                    {
+                        Success = false,
+                        Message = "Không tìm thấy thông tin user"
+                    };
+                }
+
+                // Generate JWT token
+                var token = _jwtTokenService.GenerateToken(user);
+                var refreshToken = _jwtTokenService.GenerateRefreshToken();
+
                 return new LoginResponse 
                 { 
                     Success = true, 
                     UserId = userId.Value,
+                    Token = token,
+                    RefreshToken = refreshToken,
                     Message = "Đăng nhập thành công" 
                 };
             }

@@ -9,8 +9,8 @@ namespace GunnyApi.Repositories;
 
 public class UserRepository : BaseRepository<User>, IUserRepository
 {
-    protected override string TableName => "Users";
-    protected override string IdColumn => "Id";
+    protected override string TableName => "Mem_Users";
+    protected override string IdColumn => "UserId";
 
     public UserRepository(IDbConnectionFactory connectionFactory) 
         : base(connectionFactory)
