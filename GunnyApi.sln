@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.10.34928.147
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GunnyApi", "GunnyApi\GunnyApi.csproj", "{300A5A58-1CEE-46FF-8F76-15CF39017240}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{300A5A58-1CEE-46FF-8F76-15CF39017240}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{300A5A58-1CEE-46FF-8F76-15CF39017240}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{300A5A58-1CEE-46FF-8F76-15CF39017240}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{300A5A58-1CEE-46FF-8F76-15CF39017240}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {62B3D652-ACC7-48A4-9BD8-561892C44F5A}
+	EndGlobalSection
+EndGlobal
