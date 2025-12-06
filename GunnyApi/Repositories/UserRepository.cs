@@ -2,6 +2,7 @@ using Dapper;
 using GunnyApi.Infrastructure.Database;
 using GunnyApi.Infrastructure.Repositories;
 using GunnyApi.Infrastructure.Security;
+using GunnyApi.Infrastructure.Utils;
 using GunnyApi.Models;
 
 namespace GunnyApi.Repositories;
@@ -120,21 +121,25 @@ public class UserRepository : BaseRepository<User>, IUserRepository
             (password, nameof(password))
         );
 
-        using var connection = _connectionFactory.CreateConnection();
-        
-        var parameters = new DynamicParameters();
-        parameters.Add("@ApplicationName", applicationName);
-        parameters.Add("@UserName", userName);
-        parameters.Add("@Password", password);
-        parameters.Add("@UserId", dbType: System.Data.DbType.Int32, direction: System.Data.ParameterDirection.Output);
+        // Mã hóa password sang MD5 trước khi gửi lên store
+        var hashedPassword = MD5Helper.ToMD5(password);
 
-        await connection.ExecuteAsync(
+        // Execute stored procedure và nhận DynamicParameters trực tiếp
+        var result = await ExecuteStoredProcedureAsync(
             "Mem_Users_Accede",
-            parameters,
-            commandType: System.Data.CommandType.StoredProcedure
+            inputParams: new
+            {
+                ApplicationName = applicationName,
+                UserName = userName,
+                Password = hashedPassword
+            },
+            outputParamsDef: new Dictionary<string, System.Data.DbType>
+            {
+                { "@UserId", System.Data.DbType.Int32 }
+            }
         );
 
-        var userId = parameters.Get<int?>("@UserId");
-        return userId;
+        // Lấy giá trị output trực tiếp từ DynamicParameters
+        return result.Get<int?>("@UserId");
     }
 }
