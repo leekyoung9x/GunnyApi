@@ -11,4 +11,5 @@ public class GameSettings
     public string Content2Mode { get; set; } = "0";
     public string TripleDesKey { get; set; } = string.Empty;
     public string TripleDesIV { get; set; } = string.Empty;
+    public string PasswordEncryptionMethod { get; set; } = "MD5";
 }

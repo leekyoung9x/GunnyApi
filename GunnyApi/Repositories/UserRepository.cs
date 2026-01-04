@@ -2,19 +2,30 @@ using Dapper;
 using GunnyApi.Infrastructure.Database;
 using GunnyApi.Infrastructure.Repositories;
 using GunnyApi.Infrastructure.Security;
+using GunnyApi.Infrastructure.Settings;
 using GunnyApi.Infrastructure.Utils;
 using GunnyApi.Models;
+using Microsoft.Extensions.Options;
 
 namespace GunnyApi.Repositories;
 
 public class UserRepository : BaseRepository<User>, IUserRepository
 {
-    protected override string TableName => "Mem_Users";
+    protected override string TableName 
+    { 
+        get 
+        {
+            var encryptionMethod = _gameSettings.PasswordEncryptionMethod?.ToUpper() ?? "MD5";
+            return encryptionMethod == "MD5" ? "Mem_Users" : "Mem_Account";
+        }
+    }
     protected override string IdColumn => "UserId";
+    private readonly GameSettings _gameSettings;
 
-    public UserRepository(IDbConnectionFactory connectionFactory) 
+    public UserRepository(IDbConnectionFactory connectionFactory, IOptions<GameSettings> gameSettings) 
         : base(connectionFactory)
     {
+        _gameSettings = gameSettings.Value;
     }
 
     public override async Task<int> AddAsync(User entity)
@@ -82,6 +93,32 @@ public class UserRepository : BaseRepository<User>, IUserRepository
         return await ExecuteQueryFirstOrDefaultAsync<User>(sql, new { Username = username }, validateSql: false);
     }
 
+    /// <summary>
+    /// Lấy thông tin user kèm password để verify
+    /// </summary>
+    private async Task<User?> GetByUsernameWithPasswordAsync(string username)
+    {
+        // Validate input để chống SQL injection
+        SqlInjectionProtection.ValidateInput(username, nameof(username));
+
+        var encryptionMethod = _gameSettings.PasswordEncryptionMethod?.ToUpper() ?? "MD5";
+        string sql;
+        
+        if (encryptionMethod == "MD5")
+        {
+            // Query cho bảng Mem_Users (dùng UserName)
+            sql = "SELECT UserId as Id, UserName as Username, Password, Email, NickName as FullName, RegDate as CreatedAt, IsExist as IsActive FROM Mem_Users WHERE UserName = @Username";
+        }
+        else
+        {
+            // Query cho bảng Mem_Account (dùng Email làm Username, IsBan = 0 là active)
+            sql = "SELECT UserID as Id, Email as Username, Password, Email, Fullname as FullName, DATEADD(s, TimeCreate, '1970-01-01') as CreatedAt, CAST(CASE WHEN IsBan = 0 THEN 1 ELSE 0 END AS BIT) as IsActive FROM Mem_Account WHERE Email = @Username";
+        }
+        
+        using var connection = _connectionFactory.CreateConnection();
+        return await connection.QueryFirstOrDefaultAsync<User>(sql, new { Username = username });
+    }
+
     public async Task<IEnumerable<User>> GetActiveUsersAsync()
     {
         var sql = "SELECT * FROM Users WHERE IsActive = 1";
@@ -121,25 +158,57 @@ public class UserRepository : BaseRepository<User>, IUserRepository
             (password, nameof(password))
         );
 
-        // Mã hóa password sang MD5 trước khi gửi lên store
-        var hashedPassword = MD5Helper.ToMD5(password);
+        // Kiểm tra phương thức mã hóa mật khẩu từ config
+        var encryptionMethod = _gameSettings.PasswordEncryptionMethod?.ToUpper() ?? "MD5";
 
-        // Execute stored procedure và nhận DynamicParameters trực tiếp
-        var result = await ExecuteStoredProcedureAsync(
-            "Mem_Users_Accede",
-            inputParams: new
+        if (encryptionMethod == "MD5")
+        {
+            // Logic cũ: Dùng MD5 và stored procedure
+            var hashedPassword = MD5Helper.ToMD5(password);
+
+            // Execute stored procedure và nhận DynamicParameters trực tiếp
+            var result = await ExecuteStoredProcedureAsync(
+                "Mem_Users_Accede",
+                inputParams: new
+                {
+                    ApplicationName = applicationName,
+                    UserName = userName,
+                    Password = hashedPassword
+                },
+                outputParamsDef: new Dictionary<string, System.Data.DbType>
+                {
+                    { "@UserId", System.Data.DbType.Int32 }
+                }
+            );
+
+            // Lấy giá trị output trực tiếp từ DynamicParameters
+            return result.Get<int?>("@UserId");
+        }
+        else // BCrypt
+        {
+            // Logic mới: Lấy user từ DB và verify password bằng BCrypt
+            var user = await GetByUsernameWithPasswordAsync(userName);
+            
+            if (user == null)
             {
-                ApplicationName = applicationName,
-                UserName = userName,
-                Password = hashedPassword
-            },
-            outputParamsDef: new Dictionary<string, System.Data.DbType>
-            {
-                { "@UserId", System.Data.DbType.Int32 }
+                return null; // User không tồn tại
             }
-        );
 
-        // Lấy giá trị output trực tiếp từ DynamicParameters
-        return result.Get<int?>("@UserId");
+            // Verify password bằng BCrypt
+            var isPasswordValid = BCryptHelper.VerifyPassword(password, user.Password);
+            
+            if (!isPasswordValid)
+            {
+                return null; // Password không đúng
+            }
+
+            // Kiểm tra user có active không
+            if (!user.IsActive)
+            {
+                return null; // User không active
+            }
+
+            return user.Id;
+        }
     }
 }
