@@ -10,4 +10,5 @@ public interface IUserRepository : IBaseRepository<User>
     Task<bool> UsernameExistsAsync(string username);
     Task<bool> EmailExistsAsync(string email);
     Task<int?> LoginAsync(string applicationName, string userName, string password);
+    Task<TransferMoneyResponse> TransferMoneyAsync(int userId, int amount);
 }

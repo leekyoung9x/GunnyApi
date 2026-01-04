@@ -5,7 +5,9 @@ using GunnyApi.Infrastructure.Security;
 using GunnyApi.Infrastructure.Settings;
 using GunnyApi.Infrastructure.Utils;
 using GunnyApi.Models;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Options;
+using System.Data;
 
 namespace GunnyApi.Repositories;
 
@@ -21,11 +23,13 @@ public class UserRepository : BaseRepository<User>, IUserRepository
     }
     protected override string IdColumn => "UserId";
     private readonly GameSettings _gameSettings;
+    private readonly IConfiguration _configuration;
 
-    public UserRepository(IDbConnectionFactory connectionFactory, IOptions<GameSettings> gameSettings) 
+    public UserRepository(IDbConnectionFactory connectionFactory, IOptions<GameSettings> gameSettings, IConfiguration configuration) 
         : base(connectionFactory)
     {
         _gameSettings = gameSettings.Value;
+        _configuration = configuration;
     }
 
     public override async Task<int> AddAsync(User entity)
@@ -209,6 +213,141 @@ public class UserRepository : BaseRepository<User>, IUserRepository
             }
 
             return user.Id;
+        }
+    }
+
+    public async Task<TransferMoneyResponse> TransferMoneyAsync(int userId, int amount)
+    {
+        if (amount <= 0)
+        {
+            return new TransferMoneyResponse
+            {
+                Success = false,
+                Message = "Số tiền phải lớn hơn 0"
+            };
+        }
+
+        // Get connection strings
+        var memberConnectionString = _configuration.GetConnectionString("DefaultConnection");
+        var tankConnectionString = _configuration.GetConnectionString("TankConnection");
+
+        using var memberConnection = new SqlConnection(memberConnectionString);
+        using var tankConnection = new SqlConnection(tankConnectionString);
+
+        await memberConnection.OpenAsync();
+        await tankConnection.OpenAsync();
+
+        using var memberTransaction = memberConnection.BeginTransaction();
+        using var tankTransaction = tankConnection.BeginTransaction();
+
+        try
+        {
+            // Step 1: Check if user has enough money in Mem_Account
+            var checkMoneySql = "SELECT Money FROM Mem_Account WHERE UserID = @UserId";
+            var currentMoney = await memberConnection.ExecuteScalarAsync<int?>(
+                checkMoneySql, 
+                new { UserId = userId }, 
+                memberTransaction
+            );
+
+            if (!currentMoney.HasValue)
+            {
+                return new TransferMoneyResponse
+                {
+                    Success = false,
+                    Message = "Không tìm thấy tài khoản người dùng"
+                };
+            }
+
+            if (currentMoney.Value < amount)
+            {
+                return new TransferMoneyResponse
+                {
+                    Success = false,
+                    Message = $"Số dư không đủ. Số dư hiện tại: {currentMoney.Value}, Số tiền cần chuyển: {amount}"
+                };
+            }
+
+            // Step 2: Subtract money from Mem_Account
+            var updateMemberSql = "UPDATE Mem_Account SET Money = Money - @Amount WHERE UserID = @UserId";
+            var memberRowsAffected = await memberConnection.ExecuteAsync(
+                updateMemberSql, 
+                new { UserId = userId, Amount = amount }, 
+                memberTransaction
+            );
+
+            if (memberRowsAffected == 0)
+            {
+                throw new Exception("Không thể trừ tiền từ tài khoản Member");
+            }
+
+            // Step 3: Check if user exists in Tank database
+            var checkTankUserSql = "SELECT UserID FROM Sys_Users_Detail WHERE UserID = @UserId";
+            var tankUserId = await tankConnection.ExecuteScalarAsync<int?>(
+                checkTankUserSql, 
+                new { UserId = userId }, 
+                tankTransaction
+            );
+
+            if (!tankUserId.HasValue)
+            {
+                throw new Exception("Không tìm thấy tài khoản người dùng trong database Tank");
+            }
+
+            // Step 4: Add money to Sys_Users_Detail in Tank database
+            var updateTankSql = "UPDATE Sys_Users_Detail SET Money = Money + @Amount WHERE UserID = @UserId";
+            var tankRowsAffected = await tankConnection.ExecuteAsync(
+                updateTankSql, 
+                new { UserId = userId, Amount = amount }, 
+                tankTransaction
+            );
+
+            if (tankRowsAffected == 0)
+            {
+                throw new Exception("Không thể cộng tiền vào tài khoản Tank");
+            }
+
+            // Commit both transactions
+            await memberTransaction.CommitAsync();
+            await tankTransaction.CommitAsync();
+
+            // Get updated balances
+            var updatedMemberMoney = await memberConnection.ExecuteScalarAsync<int>(
+                "SELECT Money FROM Mem_Account WHERE UserID = @UserId", 
+                new { UserId = userId }
+            );
+
+            var updatedTankMoney = await tankConnection.ExecuteScalarAsync<int>(
+                "SELECT Money FROM Sys_Users_Detail WHERE UserID = @UserId", 
+                new { UserId = userId }
+            );
+
+            return new TransferMoneyResponse
+            {
+                Success = true,
+                Message = $"Chuyển {amount} thành công từ Member sang Tank",
+                RemainingMemberMoney = updatedMemberMoney,
+                TankMoney = updatedTankMoney
+            };
+        }
+        catch (Exception ex)
+        {
+            // Rollback both transactions on error
+            try
+            {
+                await memberTransaction.RollbackAsync();
+                await tankTransaction.RollbackAsync();
+            }
+            catch
+            {
+                // Ignore rollback errors
+            }
+
+            return new TransferMoneyResponse
+            {
+                Success = false,
+                Message = $"Lỗi khi chuyển tiền: {ex.Message}"
+            };
         }
     }
 }

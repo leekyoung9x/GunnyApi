@@ -9,4 +9,5 @@ public interface IUserService : IBaseService<User>
     Task<IEnumerable<User>> GetActiveUsersAsync();
     Task<LoginResponse> LoginAsync(LoginRequest request);
     Task<User?> GetCurrentUserAsync(int userId);
+    Task<TransferMoneyResponse> TransferMoneyAsync(int userId, int amount);
 }

@@ -184,4 +184,27 @@ public class UserService : BaseService<User>, IUserService
 
         return user;
     }
+
+    public async Task<TransferMoneyResponse> TransferMoneyAsync(int userId, int amount)
+    {
+        if (userId <= 0)
+        {
+            return new TransferMoneyResponse
+            {
+                Success = false,
+                Message = "UserId không hợp lệ"
+            };
+        }
+
+        if (amount <= 0)
+        {
+            return new TransferMoneyResponse
+            {
+                Success = false,
+                Message = "Số tiền phải lớn hơn 0"
+            };
+        }
+
+        return await _userRepository.TransferMoneyAsync(userId, amount);
+    }
 }

@@ -343,6 +343,51 @@ public class UsersController : BaseApiController
     }
 
     /// <summary>
+    /// Chuyển tiền từ Member database sang Tank database
+    /// </summary>
+    [HttpPost("transfer-money")]
+    public async Task<IActionResult> TransferMoney([FromBody] TransferMoneyRequest request)
+    {
+        try
+        {
+            // Lấy userId từ UserContext (từ JWT token)
+            var userId = _userContext.UserId;
+            
+            if (userId <= 0)
+            {
+                return Unauthorized(new { message = "Không xác định được người dùng" });
+            }
+
+            // Validate amount
+            if (request.Amount <= 0)
+            {
+                return BadRequest(new { message = "Số tiền phải lớn hơn 0" });
+            }
+
+            // Thực hiện chuyển tiền
+            var result = await _userService.TransferMoneyAsync(userId, request.Amount);
+
+            if (result.Success)
+            {
+                return Ok(result);
+            }
+            else
+            {
+                return BadRequest(result);
+            }
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new 
+            { 
+                success = false, 
+                message = "Có lỗi xảy ra khi chuyển tiền", 
+                error = ex.Message 
+            });
+        }
+    }
+
+    /// <summary>
     /// Xóa user
     /// </summary>
     [HttpDelete("{id}")]
