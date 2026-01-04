@@ -125,6 +125,8 @@ public class UserService : BaseService<User>, IUserService
                     };
                 }
 
+                user.Id = user.Id == 0 ? userId.Value : user.Id;
+
                 // Generate JWT token
                 var token = _jwtTokenService.GenerateToken(user);
                 var refreshToken = _jwtTokenService.GenerateRefreshToken();
@@ -163,5 +165,23 @@ public class UserService : BaseService<User>, IUserService
                 Message = "Có lỗi xảy ra khi đăng nhập: " + ex.Message 
             };
         }
+    }
+
+    public async Task<User?> GetCurrentUserAsync(int userId)
+    {
+        if (userId <= 0)
+        {
+            throw new ArgumentException("UserId không hợp lệ", nameof(userId));
+        }
+
+        var user = await _userRepository.GetByIdAsync(userId);
+        
+        // Không trả về password
+        if (user != null)
+        {
+            user.Password = string.Empty;
+        }
+
+        return user;
     }
 }

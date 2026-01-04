@@ -1,6 +1,8 @@
 using System.Text;
+using GunnyApi.Infrastructure.Context;
 using GunnyApi.Infrastructure.Database;
 using GunnyApi.Infrastructure.Http;
+using GunnyApi.Infrastructure.Middleware;
 using GunnyApi.Infrastructure.Security;
 using GunnyApi.Infrastructure.Settings;
 using GunnyApi.Repositories;
@@ -57,6 +59,9 @@ builder.Services.AddAuthentication(options =>
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserService, UserService>();
 
+// Register UserContext
+builder.Services.AddScoped<GunnyApi.Infrastructure.Context.IUserContext, GunnyApi.Infrastructure.Context.UserContext>();
+
 builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
@@ -99,6 +104,10 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.UseAuthentication();
+
+// User Context Middleware - phải đặt sau UseAuthentication
+app.UseUserContext();
+
 app.UseAuthorization();
 
 app.MapControllers();

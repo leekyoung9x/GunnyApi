@@ -1,3 +1,4 @@
+using GunnyApi.Infrastructure.Context;
 using GunnyApi.Infrastructure.Controllers;
 using GunnyApi.Infrastructure.Http;
 using GunnyApi.Infrastructure.Settings;
@@ -19,15 +20,18 @@ public class UsersController : BaseApiController
     private readonly IUserService _userService;
     private readonly GameSettings _gameSettings;
     private readonly IHttpClientService _httpClientService;
+    private readonly IUserContext _userContext;
 
     public UsersController(
         IUserService userService,
         IOptions<GameSettings> gameSettings,
-        IHttpClientService httpClientService)
+        IHttpClientService httpClientService,
+        IUserContext userContext)
     {
         _userService = userService;
         _gameSettings = gameSettings.Value;
         _httpClientService = httpClientService;
+        _userContext = userContext;
     }
 
     /// <summary>
@@ -103,6 +107,44 @@ public class UsersController : BaseApiController
         {
             var users = await _userService.GetActiveUsersAsync();
             return Ok(users);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Có lỗi xảy ra", error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Lấy thông tin user hiện tại từ token
+    /// </summary>
+    [HttpGet("me")]
+    public async Task<IActionResult> GetCurrentUser()
+    {
+        try
+        {
+            // Lấy UserId từ UserContext (đã được middleware inject)
+            if (!_userContext.UserId.HasValue)
+            {
+                return Unauthorized(new { message = "Không tìm thấy thông tin user từ token" });
+            }
+
+            var user = await _userService.GetCurrentUserAsync(_userContext.UserId.Value);
+            
+            if (user == null)
+            {
+                return NotFound(new { message = "Không tìm thấy user" });
+            }
+
+            return Ok(new
+            {
+                id = user.Id,
+                username = user.Username,
+                email = user.Email,
+                fullName = user.FullName,
+                money = user.Money,
+                createdAt = user.CreatedAt,
+                isActive = user.IsActive
+            });
         }
         catch (Exception ex)
         {
