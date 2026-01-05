@@ -350,4 +350,94 @@ public class UserRepository : BaseRepository<User>, IUserRepository
             };
         }
     }
+
+    /// <summary>
+    /// Get player information by nickname from Tank database
+    /// </summary>
+    public async Task<PlayerInfo?> GetPlayerByNickNameAsync(string nickName)
+    {
+        try
+        {
+            // Validate input
+            SqlInjectionProtection.ValidateInput(nickName, nameof(nickName));
+
+            var tankConnectionString = _configuration.GetConnectionString("TankConnection")
+                ?? throw new InvalidOperationException("Connection string 'TankConnection' not found.");
+
+            using var connection = new SqlConnection(tankConnectionString);
+            
+            var parameters = new DynamicParameters();
+            parameters.Add("@NickName", nickName);
+
+            var result = await connection.QueryFirstOrDefaultAsync<PlayerInfo>(
+                "SP_Users_SingleByNickName",
+                parameters,
+                commandType: CommandType.StoredProcedure
+            );
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Error getting player by nickname: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Send mail to player in Tank database
+    /// </summary>
+    public async Task<bool> SendMailAsync(MailInfo mail)
+    {
+        try
+        {
+            var tankConnectionString = _configuration.GetConnectionString("TankConnection")
+                ?? throw new InvalidOperationException("Connection string 'TankConnection' not found.");
+
+            using var connection = new SqlConnection(tankConnectionString);
+            
+            var parameters = new DynamicParameters();
+            parameters.Add("@ID", dbType: DbType.Int32, direction: ParameterDirection.Output);
+            parameters.Add("@Annex1", mail.Annex1 ?? "", DbType.String);
+            parameters.Add("@Annex2", mail.Annex2 ?? "", DbType.String);
+            parameters.Add("@Content", mail.Content ?? "", DbType.String);
+            parameters.Add("@Gold", mail.Gold, DbType.Int32);
+            parameters.Add("@IsExist", true, DbType.Boolean);
+            parameters.Add("@Money", mail.Money, DbType.Int32);
+            parameters.Add("@Receiver", mail.Receiver ?? "", DbType.String);
+            parameters.Add("@ReceiverID", mail.ReceiverID, DbType.Int32);
+            parameters.Add("@Sender", mail.Sender ?? "", DbType.String);
+            parameters.Add("@SenderID", mail.SenderID, DbType.Int32);
+            parameters.Add("@Title", mail.Title ?? "", DbType.String);
+            parameters.Add("@IfDelS", false, DbType.Boolean);
+            parameters.Add("@IsDelete", false, DbType.Boolean);
+            parameters.Add("@IsDelR", false, DbType.Boolean);
+            parameters.Add("@IsRead", false, DbType.Boolean);
+            parameters.Add("@SendTime", DateTime.Now, DbType.DateTime);
+            parameters.Add("@Type", mail.Type, DbType.Int32);
+            parameters.Add("@Annex1Name", mail.Annex1Name ?? "", DbType.String);
+            parameters.Add("@Annex2Name", mail.Annex2Name ?? "", DbType.String);
+            parameters.Add("@Annex3", mail.Annex3 ?? "", DbType.String);
+            parameters.Add("@Annex4", mail.Annex4 ?? "", DbType.String);
+            parameters.Add("@Annex5", mail.Annex5 ?? "", DbType.String);
+            parameters.Add("@Annex3Name", mail.Annex3Name ?? "", DbType.String);
+            parameters.Add("@Annex4Name", mail.Annex4Name ?? "", DbType.String);
+            parameters.Add("@Annex5Name", mail.Annex5Name ?? "", DbType.String);
+            parameters.Add("@ValidDate", 30, DbType.Int32);  // ValidDate is days count (int), not datetime
+            parameters.Add("@AnnexRemark", mail.AnnexRemark ?? "", DbType.String);
+            parameters.Add("@GiftToken", mail.GiftToken, DbType.Int32);
+
+            await connection.ExecuteAsync(
+                "SP_Mail_Send",
+                parameters,
+                commandType: CommandType.StoredProcedure
+            );
+
+            mail.ID = parameters.Get<int>("@ID");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Error sending mail: {ex.Message}", ex);
+        }
+    }
 }

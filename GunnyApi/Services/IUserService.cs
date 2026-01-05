@@ -10,4 +10,5 @@ public interface IUserService : IBaseService<User>
     Task<LoginResponse> LoginAsync(LoginRequest request);
     Task<User?> GetCurrentUserAsync(int userId);
     Task<TransferMoneyResponse> TransferMoneyAsync(int userId, int amount);
+    Task<SendMoneyResponse> SendMoneyAsync(string userName, int gold, int money, int giftToken);
 }

@@ -353,7 +353,7 @@ public class UsersController : BaseApiController
             // Lấy userId từ UserContext (từ JWT token)
             var userId = _userContext.UserId;
             
-            if (userId <= 0)
+            if (!userId.HasValue || userId.Value <= 0)
             {
                 return Unauthorized(new { message = "Không xác định được người dùng" });
             }
@@ -365,7 +365,7 @@ public class UsersController : BaseApiController
             }
 
             // Thực hiện chuyển tiền
-            var result = await _userService.TransferMoneyAsync(userId, request.Amount);
+            var result = await _userService.TransferMoneyAsync(userId.Value, request.Amount);
 
             if (result.Success)
             {
@@ -405,6 +405,47 @@ public class UsersController : BaseApiController
         catch (Exception ex)
         {
             return StatusCode(500, new { message = "Có lỗi xảy ra", error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Gửi tiền, vàng, lễ kim cho người chơi
+    /// </summary>
+    [HttpPost("send-money")]
+    [AllowAnonymous]
+    public async Task<IActionResult> SendMoney([FromBody] SendMoneyRequest request)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(request.UserName))
+            {
+                return BadRequest(new { success = false, message = "Tên tài khoản không được để trống" });
+            }
+
+            var result = await _userService.SendMoneyAsync(
+                request.UserName, 
+                request.Gold, 
+                request.Money, 
+                request.GiftToken
+            );
+
+            if (result.Success)
+            {
+                return Ok(result);
+            }
+            else
+            {
+                return BadRequest(result);
+            }
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new 
+            { 
+                success = false, 
+                message = "Có lỗi xảy ra", 
+                error = ex.Message 
+            });
         }
     }
 }

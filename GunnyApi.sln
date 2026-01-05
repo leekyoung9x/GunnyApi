@@ -3,7 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.10.34928.147
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GunnyApi", "GunnyApi\GunnyApi.csproj", "{300A5A58-1CEE-46FF-8F76-15CF39017240}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GunnyApi", "GunnyApi\GunnyApi.csproj", "{300A5A58-1CEE-46FF-8F76-15CF39017240}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CenterService.Client", "CenterService.Client\CenterService.Client.csproj", "{3B39BDE9-9AF5-4B8F-A35A-AB689D9A307F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +17,10 @@ Global
 		{300A5A58-1CEE-46FF-8F76-15CF39017240}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{300A5A58-1CEE-46FF-8F76-15CF39017240}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{300A5A58-1CEE-46FF-8F76-15CF39017240}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3B39BDE9-9AF5-4B8F-A35A-AB689D9A307F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3B39BDE9-9AF5-4B8F-A35A-AB689D9A307F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3B39BDE9-9AF5-4B8F-A35A-AB689D9A307F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3B39BDE9-9AF5-4B8F-A35A-AB689D9A307F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
