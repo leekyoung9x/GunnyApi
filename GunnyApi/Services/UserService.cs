@@ -129,6 +129,7 @@ public class UserService : BaseService<User>, IUserService
                 }
 
                 user.Id = user.Id == 0 ? userId.Value : user.Id;
+                user.Username = user.Email;
 
                 // Generate JWT token
                 var token = _jwtTokenService.GenerateToken(user);
