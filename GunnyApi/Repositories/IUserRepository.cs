@@ -12,5 +12,6 @@ public interface IUserRepository : IBaseRepository<User>
     Task<int?> LoginAsync(string applicationName, string userName, string password);
     Task<TransferMoneyResponse> TransferMoneyAsync(int userId, int amount);
     Task<PlayerInfo?> GetPlayerByNickNameAsync(string nickName);
+    Task<PlayerInfo?> GetPlayerByUserNameAsync(string userName);
     Task<bool> SendMailAsync(MailInfo mail);
 }

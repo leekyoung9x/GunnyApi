@@ -216,6 +216,9 @@ public class UserRepository : BaseRepository<User>, IUserRepository
         }
     }
 
+    /// <summary>
+    /// Subtract money from Mem_Account and return user's nickname
+    /// </summary>
     public async Task<TransferMoneyResponse> TransferMoneyAsync(int userId, int amount)
     {
         if (amount <= 0)
@@ -227,18 +230,10 @@ public class UserRepository : BaseRepository<User>, IUserRepository
             };
         }
 
-        // Get connection strings
         var memberConnectionString = _configuration.GetConnectionString("DefaultConnection");
-        var tankConnectionString = _configuration.GetConnectionString("TankConnection");
-
         using var memberConnection = new SqlConnection(memberConnectionString);
-        using var tankConnection = new SqlConnection(tankConnectionString);
-
         await memberConnection.OpenAsync();
-        await tankConnection.OpenAsync();
-
         using var memberTransaction = memberConnection.BeginTransaction();
-        using var tankTransaction = tankConnection.BeginTransaction();
 
         try
         {
@@ -268,7 +263,24 @@ public class UserRepository : BaseRepository<User>, IUserRepository
                 };
             }
 
-            // Step 2: Subtract money from Mem_Account
+            // Step 2: Get user's email for later use (email từ db member = username của db tank)
+            var getEmailSql = "SELECT Email FROM Mem_Account WHERE UserID = @UserId";
+            var userEmail = await memberConnection.ExecuteScalarAsync<string>(
+                getEmailSql, 
+                new { UserId = userId }, 
+                memberTransaction
+            );
+
+            if (string.IsNullOrWhiteSpace(userEmail))
+            {
+                return new TransferMoneyResponse
+                {
+                    Success = false,
+                    Message = "Không tìm thấy thông tin email người dùng"
+                };
+            }
+
+            // Step 3: Subtract money from Mem_Account
             var updateMemberSql = "UPDATE Mem_Account SET Money = Money - @Amount WHERE UserID = @UserId";
             var memberRowsAffected = await memberConnection.ExecuteAsync(
                 updateMemberSql, 
@@ -281,62 +293,29 @@ public class UserRepository : BaseRepository<User>, IUserRepository
                 throw new Exception("Không thể trừ tiền từ tài khoản Member");
             }
 
-            // Step 3: Check if user exists in Tank database
-            var checkTankUserSql = "SELECT UserID FROM Sys_Users_Detail WHERE UserID = @UserId";
-            var tankUserId = await tankConnection.ExecuteScalarAsync<int?>(
-                checkTankUserSql, 
-                new { UserId = userId }, 
-                tankTransaction
-            );
-
-            if (!tankUserId.HasValue)
-            {
-                throw new Exception("Không tìm thấy tài khoản người dùng trong database Tank");
-            }
-
-            // Step 4: Add money to Sys_Users_Detail in Tank database
-            var updateTankSql = "UPDATE Sys_Users_Detail SET Money = Money + @Amount WHERE UserID = @UserId";
-            var tankRowsAffected = await tankConnection.ExecuteAsync(
-                updateTankSql, 
-                new { UserId = userId, Amount = amount }, 
-                tankTransaction
-            );
-
-            if (tankRowsAffected == 0)
-            {
-                throw new Exception("Không thể cộng tiền vào tài khoản Tank");
-            }
-
-            // Commit both transactions
+            // Commit transaction
             await memberTransaction.CommitAsync();
-            await tankTransaction.CommitAsync();
 
-            // Get updated balances
+            // Get updated balance
             var updatedMemberMoney = await memberConnection.ExecuteScalarAsync<int>(
                 "SELECT Money FROM Mem_Account WHERE UserID = @UserId", 
-                new { UserId = userId }
-            );
-
-            var updatedTankMoney = await tankConnection.ExecuteScalarAsync<int>(
-                "SELECT Money FROM Sys_Users_Detail WHERE UserID = @UserId", 
                 new { UserId = userId }
             );
 
             return new TransferMoneyResponse
             {
                 Success = true,
-                Message = $"Chuyển {amount} thành công từ Member sang Tank",
+                Message = $"Đã trừ {amount} từ tài khoản Member",
                 RemainingMemberMoney = updatedMemberMoney,
-                TankMoney = updatedTankMoney
+                UserEmail = userEmail
             };
         }
         catch (Exception ex)
         {
-            // Rollback both transactions on error
+            // Rollback transaction on error
             try
             {
                 await memberTransaction.RollbackAsync();
-                await tankTransaction.RollbackAsync();
             }
             catch
             {
@@ -346,7 +325,7 @@ public class UserRepository : BaseRepository<User>, IUserRepository
             return new TransferMoneyResponse
             {
                 Success = false,
-                Message = $"Lỗi khi chuyển tiền: {ex.Message}"
+                Message = $"Lỗi khi trừ tiền: {ex.Message}"
             };
         }
     }
@@ -380,6 +359,38 @@ public class UserRepository : BaseRepository<User>, IUserRepository
         catch (Exception ex)
         {
             throw new Exception($"Error getting player by nickname: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Get player information by username (email) from Tank database
+    /// </summary>
+    public async Task<PlayerInfo?> GetPlayerByUserNameAsync(string userName)
+    {
+        try
+        {
+            // Validate input
+            SqlInjectionProtection.ValidateInput(userName, nameof(userName));
+
+            var tankConnectionString = _configuration.GetConnectionString("TankConnection")
+                ?? throw new InvalidOperationException("Connection string 'TankConnection' not found.");
+
+            using var connection = new SqlConnection(tankConnectionString);
+            
+            var parameters = new DynamicParameters();
+            parameters.Add("@UserName", userName);
+
+            var result = await connection.QueryFirstOrDefaultAsync<PlayerInfo>(
+                "SP_Users_SingleByUserName",
+                parameters,
+                commandType: CommandType.StoredProcedure
+            );
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Error getting player by username: {ex.Message}", ex);
         }
     }
 

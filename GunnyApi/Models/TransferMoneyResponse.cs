@@ -6,4 +6,5 @@ public class TransferMoneyResponse
     public string Message { get; set; } = string.Empty;
     public int RemainingMemberMoney { get; set; }
     public int TankMoney { get; set; }
+    public string UserEmail { get; set; } = string.Empty;
 }

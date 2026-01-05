@@ -209,7 +209,35 @@ public class UserService : BaseService<User>, IUserService
             };
         }
 
-        return await _userRepository.TransferMoneyAsync(userId, amount);
+        // Step 1: Subtract money from Mem_Account
+        var transferResult = await _userRepository.TransferMoneyAsync(userId, amount);
+        
+        if (!transferResult.Success)
+        {
+            return transferResult;
+        }
+
+        // Step 2: Send money via mail to player in Tank database using email (email từ db member = username của db tank)
+        var sendMoneyResult = await SendMoneyAsync(transferResult.UserEmail, 0, amount, 0);
+        
+        if (!sendMoneyResult.Success)
+        {
+            // Note: Money already deducted from Mem_Account
+            // Consider implementing compensation logic or manual intervention
+            return new TransferMoneyResponse
+            {
+                Success = false,
+                Message = $"Đã trừ tiền từ Mem_Account nhưng không gửi được mail: {sendMoneyResult.Message}",
+                RemainingMemberMoney = transferResult.RemainingMemberMoney
+            };
+        }
+
+        return new TransferMoneyResponse
+        {
+            Success = true,
+            Message = $"Chuyển {amount} Xu thành công từ Member sang Tank qua mail. {sendMoneyResult.Message}",
+            RemainingMemberMoney = transferResult.RemainingMemberMoney
+        };
     }
 
     /// <summary>
@@ -239,8 +267,8 @@ public class UserService : BaseService<User>, IUserService
                 };
             }
 
-            // Get player by nickname from Tank database
-            var player = await _userRepository.GetPlayerByNickNameAsync(userName);
+            // Get player by username (email) from Tank database using SP_Users_SingleByUserName
+            var player = await _userRepository.GetPlayerByUserNameAsync(userName);
             
             if (player == null)
             {
