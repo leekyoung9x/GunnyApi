@@ -3,6 +3,7 @@ using GunnyApi.Infrastructure.Http;
 using GunnyApi.Infrastructure.Settings;
 using GunnyApi.Infrastructure.Utils;
 using GunnyApi.Models;
+using GunnyApi.Repositories;
 using GunnyApi.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -19,15 +20,18 @@ public class UsersController : BaseApiController
     private readonly IUserService _userService;
     private readonly GameSettings _gameSettings;
     private readonly IHttpClientService _httpClientService;
+    private readonly IServerService _serverService;
 
     public UsersController(
         IUserService userService,
         IOptions<GameSettings> gameSettings,
-        IHttpClientService httpClientService)
+        IHttpClientService httpClientService,
+        IServerService serverService)
     {
         _userService = userService;
         _gameSettings = gameSettings.Value;
         _httpClientService = httpClientService;
+        _serverService = serverService;
     }
 
     /// <summary>
@@ -403,6 +407,24 @@ public class UsersController : BaseApiController
                 return NotFound(new { message = "Không tìm thấy user để xóa" });
             }
             return Ok(new { message = "Xóa thành công" });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Có lỗi xảy ra", error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Lấy danh sách servers từ Server_List
+    /// </summary>
+    [HttpPost("server")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetServerList([FromBody] ServerListRequest request)
+    {
+        try
+        {
+            var response = await _serverService.GetServerListAsync(request.Version);
+            return Ok(response);
         }
         catch (Exception ex)
         {
