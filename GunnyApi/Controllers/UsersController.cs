@@ -431,4 +431,99 @@ public class UsersController : BaseApiController
             return StatusCode(500, new { message = "Có lỗi xảy ra", error = ex.Message });
         }
     }
+
+    /// <summary>
+    /// Create Key API - Tạo key bảo mật cho user
+    /// </summary>
+    [HttpPost("createKey")]
+    [AllowAnonymous]
+    public async Task<IActionResult> CreateKey([FromBody] CreateKeyRequest request)
+    {
+        try
+        {
+            // Validate input
+            if (string.IsNullOrEmpty(request.username))
+            {
+                return Ok(new CreateKeyResponse
+                {
+                    code = 0,
+                    key = string.Empty
+                });
+            }
+
+            if (string.IsNullOrEmpty(request.password))
+            {
+                return Ok(new CreateKeyResponse
+                {
+                    code = 0,
+                    key = string.Empty
+                });
+            }
+
+            // Authenticate user
+            var loginRequest = new LoginRequest
+            {
+                UserName = request.username,
+                Password = request.password
+            };
+
+            var loginResult = await _userService.LoginAsync(loginRequest);
+
+            if (!loginResult.Success)
+            {
+                return Ok(new CreateKeyResponse
+                {
+                    code = 0,
+                    key = string.Empty
+                });
+            }
+
+            // Generate game login credentials
+            string username = request.username;
+            // Tạo password tạm thời cho game session (không dùng password thật)
+            string password = Guid.NewGuid().ToString();
+            long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            string key = string.IsNullOrEmpty(_gameSettings.LoginKey) 
+                ? "default-key" 
+                : _gameSettings.LoginKey;
+
+            // Create verification hash
+            string verificationHash = MD5Helper.ToMD5(username + password + timestamp.ToString() + key);
+
+            // Create content for game server
+            string content = $"{username}|{password}|{timestamp}|{verificationHash}";
+            string encodedContent = HttpUtility.UrlEncode(content);
+
+            // Call game server API to register session
+            string loginUrl = $"{_gameSettings.LoginUrl}?content={encodedContent}";
+            string result = await RequestContent(loginUrl);
+
+            if (result == "0") // Game server accepted the session
+            {
+                // Return success with key (password is the key for game)
+                return Ok(new CreateKeyResponse
+                {
+                    code = 0,
+                    key = password
+                });
+            }
+            else
+            {
+                return Ok(new CreateKeyResponse
+                {
+                    code = 0,
+                    key = string.Empty
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            // Trả về exception với code khác 0
+            return Ok(new CreateKeyResponse
+            {
+                code = 1,
+                key = string.Empty
+            });
+        }
+    }
 }
