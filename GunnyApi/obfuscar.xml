@@ -1,13 +1,23 @@
 ﻿<?xml version='1.0'?>
 <Obfuscator>
-	<Var name="InPath" value=".\bin\Release\net8.0" />
-	<Var name="OutPath" value=".\bin\Release\net8.0\Obfuscated" />
+  <Var name="InPath" value=".\bin\Release\net8.0" />
+  <Var name="OutPath" value=".\bin\Release\net8.0\Obfuscated" />
 
-	<Var name="KeepPublicApi" value="false" />
-	<Var name="HidePrivateApi" value="true" />
-	<Var name="RenameProperties" value="true" />
-	<Var name="RenameFields" value="true" />
-	<Var name="UseUnicodeNames" value="true" />
-	<Module file="$(InPath)\GunnyApi.dll" />
-	<Module file="$(InPath)\CenterService.Client.dll" />
+  <!-- Các Option khác giữ nguyên như bạn đã chọn -->
+  <Var name="KeepPublicApi" value="true" />
+  <Var name="HidePrivateApi" value="true" />
+  <Var name="RenameProperties" value="true" />
+  <Var name="RenameFields" value="true" />
+  <Var name="UseUnicodeNames" value="false" />
+
+  <!-- MODULE DLL -->
+  <Module file="$(InPath)\GunnyApi.dll">
+    <!-- Giữ các phương thức 'Invoke', 'InvokeAsync' của tất cả type trong module -->
+    <SkipMethod type="*" name="Invoke"/>
+    <SkipMethod type="*" name="InvokeAsync"/>
+  </Module>
+  <Module file="$(InPath)\CenterService.Client.dll">
+    <SkipMethod type="*" name="Invoke"/>
+    <SkipMethod type="*" name="InvokeAsync"/>
+  </Module>
 </Obfuscator>
