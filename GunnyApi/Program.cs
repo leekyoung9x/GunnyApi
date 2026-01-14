@@ -58,6 +58,8 @@ builder.Services.AddAuthentication(options =>
 // Register Repositories and Services
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<IServerRepository, ServerRepository>();
+builder.Services.AddScoped<IServerService, ServerService>();
 
 // Register UserContext
 builder.Services.AddScoped<GunnyApi.Infrastructure.Context.IUserContext, GunnyApi.Infrastructure.Context.UserContext>();
