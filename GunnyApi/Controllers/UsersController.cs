@@ -21,17 +21,20 @@ public class UsersController : BaseApiController
     private readonly GameSettings _gameSettings;
     private readonly IHttpClientService _httpClientService;
     private readonly IUserContext _userContext;
+    private readonly IServerService _serverService;
 
     public UsersController(
         IUserService userService,
         IOptions<GameSettings> gameSettings,
         IHttpClientService httpClientService,
-        IUserContext userContext)
+        IUserContext userContext,
+        IServerService serverService)
     {
         _userService = userService;
         _gameSettings = gameSettings.Value;
         _httpClientService = httpClientService;
         _userContext = userContext;
+        _serverService = serverService;
     }
 
     /// <summary>
@@ -445,6 +448,208 @@ public class UsersController : BaseApiController
                 success = false, 
                 message = "Có lỗi xảy ra", 
                 error = ex.Message 
+            });
+        }
+    }
+
+    /// <summary>
+    /// Login Mobile API - Đăng nhập cho mobile client và trả về token để kết nối game
+    /// </summary>
+    [HttpPost("login-mobile")]
+    [AllowAnonymous]
+    public async Task<IActionResult> LoginMobile([FromBody] LoginRequest request)
+    {
+        try
+        {
+            // Validate input
+            if (string.IsNullOrEmpty(request.UserName))
+            {
+                return Ok(new
+                {
+                    error = "INVALID_USERNAME",
+                    msg = "Vui lòng nhập tài khoản"
+                });
+            }
+
+            if (string.IsNullOrEmpty(request.Password))
+            {
+                return Ok(new
+                {
+                    error = "INVALID_PASSWORD",
+                    msg = "Vui lòng nhập đầy đủ thông tin"
+                });
+            }
+
+            // Authenticate user
+            var loginResult = await _userService.LoginAsync(request);
+
+            if (!loginResult.Success)
+            {
+                return Ok(new
+                {
+                    error = "AUTH_FAILED",
+                    msg = loginResult.Message ?? "Đăng nhập thất bại"
+                });
+            }
+
+            // Generate game login credentials
+            string username = request.UserName;
+            // Tạo password tạm thời cho game session (không dùng password thật)
+            string password = Guid.NewGuid().ToString();
+            long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            string key = string.IsNullOrEmpty(_gameSettings.LoginKey)
+                ? "default-key"
+                : _gameSettings.LoginKey;
+
+            // Create verification hash
+            string verificationHash = MD5Helper.ToMD5(username + password + timestamp.ToString() + key);
+
+            // Create content for game server
+            string content = $"{username}|{password}|{timestamp}|{verificationHash}";
+            string encodedContent = HttpUtility.UrlEncode(content);
+
+            // Call game server API to register session
+            string loginUrl = $"{_gameSettings.LoginUrl}?content={encodedContent}";
+            string result = await RequestContent(loginUrl);
+
+            if (result == "0") // Game server accepted the session
+            {
+                // Return success with token (password is the key for game)
+                return Ok(new
+                {
+                    token = password,
+                    username = username,
+                    msg = "Đăng nhập thành công"
+                });
+            }
+            else
+            {
+                return Ok(new
+                {
+                    error = "GAME_SERVER_ERROR",
+                    msg = $"Không thể kết nối game server: {result}"
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            return Ok(new
+            {
+                error = "SERVER_ERROR",
+                msg = $"Có lỗi xảy ra: {ex.Message}"
+            });
+        }
+    }
+
+    /// <summary>
+    /// Lấy danh sách servers từ Server_List
+    /// </summary>
+    [HttpPost("server")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetServerList([FromBody] ServerListRequest request)
+    {
+        try
+        {
+            var response = await _serverService.GetServerListAsync(request.Version);
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Có lỗi xảy ra", error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Create Key API - Tạo key bảo mật cho user
+    /// </summary>
+    [HttpPost("createKey")]
+    [AllowAnonymous]
+    public async Task<IActionResult> CreateKey([FromBody] CreateKeyRequest request)
+    {
+        try
+        {
+            // Validate input
+            if (string.IsNullOrEmpty(request.username))
+            {
+                return Ok(new CreateKeyResponse
+                {
+                    code = 0,
+                    key = string.Empty
+                });
+            }
+
+            if (string.IsNullOrEmpty(request.password))
+            {
+                return Ok(new CreateKeyResponse
+                {
+                    code = 0,
+                    key = string.Empty
+                });
+            }
+
+            // Authenticate user
+            var loginRequest = new LoginRequest
+            {
+                UserName = request.username,
+                Password = request.password
+            };
+
+            var loginResult = await _userService.LoginAsync(loginRequest);
+
+            if (!loginResult.Success)
+            {
+                return Ok(new CreateKeyResponse
+                {
+                    code = 0,
+                    key = string.Empty
+                });
+            }
+
+            // Generate game login credentials
+            string username = request.username;
+            // Tạo password tạm thời cho game session (không dùng password thật)
+            string password = Guid.NewGuid().ToString();
+            long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            string key = string.IsNullOrEmpty(_gameSettings.LoginKey)
+                ? "default-key"
+                : _gameSettings.LoginKey;
+
+            // Create verification hash
+            string verificationHash = MD5Helper.ToMD5(username + password + timestamp.ToString() + key);
+
+            // Create content for game server
+            string content = $"{username}|{password}|{timestamp}|{verificationHash}";
+            string encodedContent = HttpUtility.UrlEncode(content);
+
+            // Call game server API to register session
+            string loginUrl = $"{_gameSettings.LoginUrl}?content={encodedContent}";
+            string result = await RequestContent(loginUrl);
+
+            if (result == "0") // Game server accepted the session
+            {
+                // Return success with key (password is the key for game)
+                return Ok(new CreateKeyResponse
+                {
+                    code = 0,
+                    key = password
+                });
+            }
+            else
+            {
+                return Ok(new CreateKeyResponse
+                {
+                    code = 0,
+                    key = string.Empty
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            // Trả về exception với code khác 0
+            return Ok(new CreateKeyResponse
+            {
+                code = 1,
+                key = string.Empty
             });
         }
     }
