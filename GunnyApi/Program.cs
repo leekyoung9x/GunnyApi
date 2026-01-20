@@ -65,6 +65,21 @@ builder.Services.AddScoped<IServerService, ServerService>();
 builder.Services.AddScoped<GunnyApi.Infrastructure.Context.IUserContext, GunnyApi.Infrastructure.Context.UserContext>();
 
 builder.Services.AddControllers();
+
+// Bổ sung đoạn này ngay bên dưới AddControllers
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowLocalhost",
+        builder =>
+        {
+            builder
+                .WithOrigins("http://localhost", "http://localhost:3000", "http://localhost:4200") // Thêm port frontend
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials();
+        });
+});
+
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
@@ -104,6 +119,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseCors("AllowLocalhost"); // <--- Đặt trước UseAuthentication
 
 app.UseAuthentication();
 
