@@ -331,6 +331,91 @@ public class UserRepository : BaseRepository<User>, IUserRepository
     }
 
     /// <summary>
+    /// Register new user in Mem_Account and return userId
+    /// </summary>
+    public async Task<int?> RegisterUserAsync(string username, string password, string fullname)
+    {
+        try
+        {
+            // Validate input
+            SqlInjectionProtection.ValidateInputs(
+                (username, nameof(username)),
+                (password, nameof(password)),
+                (fullname, nameof(fullname))
+            );
+
+            // Kiểm tra email đã tồn tại chưa
+            if (await EmailExistsAsync(username))
+            {
+                return null;
+            }
+
+            // Hash password bằng BCrypt
+            var hashedPassword = BCryptHelper.HashPassword(password);
+
+            var sql = @"
+                INSERT INTO Mem_Account (Email, Password, Fullname, Money, MoneyLock, TotalMoney, MoneyEvent, Point, CountLucky, VIPLevel, VIPExp, IsBan, AllowSocialLogin, TimeCreate)
+                VALUES (@Email, @Password, @Fullname, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, DATEDIFF(s, '1970-01-01', GETDATE()));
+                SELECT CAST(SCOPE_IDENTITY() AS INT);";
+
+            using var connection = _connectionFactory.CreateConnection();
+            var userId = await connection.ExecuteScalarAsync<int>(sql, new
+            {
+                Email = username,
+                Password = hashedPassword,
+                Fullname = fullname
+            });
+
+            return userId;
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Error registering user: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Call Proc_InsertNewUserDetail stored procedure on TankConnection
+    /// </summary>
+    public async Task<bool> CallInsertUserDetailProcAsync(int userId, string username, string nickname, int exp, int gold, int money, bool sex)
+    {
+        try
+        {
+            // Validate input
+            SqlInjectionProtection.ValidateInputs(
+                (username, nameof(username)),
+                (nickname, nameof(nickname))
+            );
+
+            var tankConnectionString = _configuration.GetConnectionString("TankConnection")
+                ?? throw new InvalidOperationException("Connection string 'TankConnection' not found.");
+
+            using var connection = new SqlConnection(tankConnectionString);
+            
+            var parameters = new DynamicParameters();
+            parameters.Add("@UserID", userId);
+            parameters.Add("@UserName", username);
+            parameters.Add("@NickName", nickname);
+            parameters.Add("@exp", exp);
+            parameters.Add("@gold", gold);
+            parameters.Add("@money", money);
+            parameters.Add("@sex", sex);
+
+            await connection.ExecuteAsync(
+                "Proc_InsertNewUserDetail",
+                parameters,
+                commandType: CommandType.StoredProcedure
+            );
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Error calling Proc_InsertNewUserDetail: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
     /// Get player information by nickname from Tank database
     /// </summary>
     public async Task<PlayerInfo?> GetPlayerByNickNameAsync(string nickName)

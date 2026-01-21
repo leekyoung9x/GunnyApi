@@ -171,6 +171,112 @@ public class UserService : BaseService<User>, IUserService
         }
     }
 
+    public async Task<RegisterResponse> RegisterAsync(RegisterRequest request)
+    {
+        // Validate input
+        if (string.IsNullOrWhiteSpace(request.Username))
+        {
+            return new RegisterResponse
+            {
+                Success = false,
+                Message = "Username không được rỗng"
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Password))
+        {
+            return new RegisterResponse
+            {
+                Success = false,
+                Message = "Password không được rỗng"
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Nickname))
+        {
+            return new RegisterResponse
+            {
+                Success = false,
+                Message = "Nickname không được rỗng"
+            };
+        }
+
+        try
+        {
+            // Validate SQL injection
+            SqlInjectionProtection.ValidateInputs(
+                (request.Username, nameof(request.Username)),
+                (request.Password, nameof(request.Password)),
+                (request.Nickname, nameof(request.Nickname))
+            );
+
+            // B1: Thêm dữ liệu vào Mem_Account và lấy UserID
+            var userId = await _userRepository.RegisterUserAsync(
+                request.Username, 
+                request.Password, 
+                request.Nickname
+            );
+
+            if (!userId.HasValue || userId.Value <= 0)
+            {
+                return new RegisterResponse
+                {
+                    Success = false,
+                    Message = "Email đã tồn tại hoặc có lỗi khi tạo tài khoản"
+                };
+            }
+
+            // Lấy config cho exp, gold, money từ GameSettings
+            var exp = _configuration.GetValue<int>("GameSettings:NewUserExp", 0);
+            var gold = _configuration.GetValue<int>("GameSettings:NewUserGold", 0);
+            var money = _configuration.GetValue<int>("GameSettings:NewUserMoney", 0);
+
+            // B2: Gọi stored procedure Proc_InsertNewUserDetail trên TankConnection
+            var insertDetailResult = await _userRepository.CallInsertUserDetailProcAsync(
+                userId.Value,
+                request.Username,
+                request.Nickname,
+                exp,
+                gold,
+                money,
+                request.Sex
+            );
+
+            if (!insertDetailResult)
+            {
+                return new RegisterResponse
+                {
+                    Success = false,
+                    Message = "Đã tạo tài khoản nhưng có lỗi khi tạo thông tin chi tiết người chơi",
+                    UserId = userId.Value
+                };
+            }
+
+            return new RegisterResponse
+            {
+                Success = true,
+                Message = "Đăng ký tài khoản thành công",
+                UserId = userId.Value
+            };
+        }
+        catch (SecurityException ex)
+        {
+            return new RegisterResponse
+            {
+                Success = false,
+                Message = ex.Message
+            };
+        }
+        catch (Exception ex)
+        {
+            return new RegisterResponse
+            {
+                Success = false,
+                Message = "Có lỗi xảy ra khi đăng ký: " + ex.Message
+            };
+        }
+    }
+
     public async Task<User?> GetCurrentUserAsync(int userId)
     {
         if (userId <= 0)

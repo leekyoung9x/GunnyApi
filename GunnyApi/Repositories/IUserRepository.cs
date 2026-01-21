@@ -10,6 +10,8 @@ public interface IUserRepository : IBaseRepository<User>
     Task<bool> UsernameExistsAsync(string username);
     Task<bool> EmailExistsAsync(string email);
     Task<int?> LoginAsync(string applicationName, string userName, string password);
+    Task<int?> RegisterUserAsync(string username, string password, string fullname);
+    Task<bool> CallInsertUserDetailProcAsync(int userId, string username, string nickname, int exp, int gold, int money, bool sex);
     Task<TransferMoneyResponse> TransferMoneyAsync(int userId, int amount);
     Task<PlayerInfo?> GetPlayerByNickNameAsync(string nickName);
     Task<PlayerInfo?> GetPlayerByUserNameAsync(string userName);

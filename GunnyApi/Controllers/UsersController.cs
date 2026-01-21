@@ -182,6 +182,32 @@ public class UsersController : BaseApiController
     }
 
     /// <summary>
+    /// Register API - Đăng ký tài khoản mới
+    /// </summary>
+    [HttpPost("register")]
+    [AllowAnonymous]
+    public async Task<IActionResult> Register([FromBody] RegisterRequest request)
+    {
+        try
+        {
+            var result = await _userService.RegisterAsync(request);
+
+            if (result.Success)
+            {
+                return Ok(result);
+            }
+            else
+            {
+                return BadRequest(result);
+            }
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = "Có lỗi xảy ra", error = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Login Game API - Đăng nhập và chuyển hướng đến game
     /// </summary>
     [HttpGet("login-game")]

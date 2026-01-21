@@ -8,6 +8,7 @@ public interface IUserService : IBaseService<User>
     Task<User?> GetByUsernameAsync(string username);
     Task<IEnumerable<User>> GetActiveUsersAsync();
     Task<LoginResponse> LoginAsync(LoginRequest request);
+    Task<RegisterResponse> RegisterAsync(RegisterRequest request);
     Task<User?> GetCurrentUserAsync(int userId);
     Task<TransferMoneyResponse> TransferMoneyAsync(int userId, int amount);
     Task<SendMoneyResponse> SendMoneyAsync(string userName, int gold, int money, int giftToken);
