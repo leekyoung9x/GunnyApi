@@ -25,6 +25,9 @@ builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 // Game Settings Configuration
 builder.Services.Configure<GameSettings>(builder.Configuration.GetSection("GameSettings"));
 
+// CORS Settings Configuration
+builder.Services.Configure<CorsSettings>(builder.Configuration.GetSection("CorsSettings"));
+
 // HttpClient Factory và Service
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IHttpClientService, HttpClientService>();
@@ -66,17 +69,22 @@ builder.Services.AddScoped<GunnyApi.Infrastructure.Context.IUserContext, GunnyAp
 
 builder.Services.AddControllers();
 
-// Bổ sung đoạn này ngay bên dưới AddControllers
+// CORS Configuration from appsettings.json
+var corsSettings = builder.Configuration.GetSection("CorsSettings").Get<CorsSettings>();
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowLocalhost",
-        builder =>
+    options.AddPolicy(corsSettings!.PolicyName,
+        policyBuilder =>
         {
-            builder
-                .WithOrigins("http://localhost", "http://localhost:3000", "http://localhost:4200") // Thêm port frontend
+            policyBuilder
+                .WithOrigins(corsSettings.AllowedOrigins)
                 .AllowAnyHeader()
-                .AllowAnyMethod()
-                .AllowCredentials();
+                .AllowAnyMethod();
+            
+            if (corsSettings.AllowCredentials)
+            {
+                policyBuilder.AllowCredentials();
+            }
         });
 });
 
@@ -120,7 +128,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.UseCors("AllowLocalhost"); // <--- Đặt trước UseAuthentication
+app.UseCors(corsSettings!.PolicyName); // <--- Đặt trước UseAuthentication
 
 app.UseAuthentication();
 
