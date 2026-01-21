@@ -28,6 +28,10 @@ builder.Services.Configure<GameSettings>(builder.Configuration.GetSection("GameS
 // CORS Settings Configuration
 builder.Services.Configure<CorsSettings>(builder.Configuration.GetSection("CorsSettings"));
 
+// Localization Settings Configuration
+builder.Services.Configure<LocalizationSettings>(builder.Configuration.GetSection("LocalizationSettings"));
+builder.Services.AddSingleton<GunnyApi.Infrastructure.Services.ILocalizationService, GunnyApi.Infrastructure.Services.LocalizationService>();
+
 // HttpClient Factory và Service
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IHttpClientService, HttpClientService>();
@@ -129,6 +133,9 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.UseCors(corsSettings!.PolicyName); // <--- Đặt trước UseAuthentication
+
+// Language Detection Middleware - đặt trước UseAuthentication
+app.UseLanguageDetection();
 
 app.UseAuthentication();
 

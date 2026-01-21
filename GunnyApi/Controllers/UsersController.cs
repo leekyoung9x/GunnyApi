@@ -3,6 +3,7 @@ using GunnyApi.Infrastructure.Controllers;
 using GunnyApi.Infrastructure.Http;
 using GunnyApi.Infrastructure.Settings;
 using GunnyApi.Infrastructure.Utils;
+using GunnyApi.Infrastructure.Services;
 using GunnyApi.Models;
 using GunnyApi.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -22,19 +23,22 @@ public class UsersController : BaseApiController
     private readonly IHttpClientService _httpClientService;
     private readonly IUserContext _userContext;
     private readonly IServerService _serverService;
+    private readonly ILocalizationService _localization;
 
     public UsersController(
         IUserService userService,
         IOptions<GameSettings> gameSettings,
         IHttpClientService httpClientService,
         IUserContext userContext,
-        IServerService serverService)
+        IServerService serverService,
+        ILocalizationService localization)
     {
         _userService = userService;
         _gameSettings = gameSettings.Value;
         _httpClientService = httpClientService;
         _userContext = userContext;
         _serverService = serverService;
+        _localization = localization;
     }
 
     /// <summary>
@@ -50,7 +54,7 @@ public class UsersController : BaseApiController
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "Có lỗi xảy ra", error = ex.Message });
+            return StatusCode(500, new { message = _localization.GetString("Error.Generic"), error = ex.Message });
         }
     }
 
@@ -65,13 +69,13 @@ public class UsersController : BaseApiController
             var user = await _userService.GetByIdAsync(id);
             if (user == null)
             {
-                return NotFound(new { message = "Không tìm thấy user" });
+                return NotFound(new { message = _localization.GetString("User.NotFound") });
             }
             return Ok(user);
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "Có lỗi xảy ra", error = ex.Message });
+            return StatusCode(500, new { message = _localization.GetString("Error.Generic"), error = ex.Message });
         }
     }
 
@@ -86,7 +90,7 @@ public class UsersController : BaseApiController
             var user = await _userService.GetByUsernameAsync(username);
             if (user == null)
             {
-                return NotFound(new { message = "Không tìm thấy user" });
+                return NotFound(new { message = _localization.GetString("User.NotFound") });
             }
             return Ok(user);
         }
@@ -96,7 +100,7 @@ public class UsersController : BaseApiController
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "Có lỗi xảy ra", error = ex.Message });
+            return StatusCode(500, new { message = _localization.GetString("Error.Generic"), error = ex.Message });
         }
     }
 
@@ -113,7 +117,7 @@ public class UsersController : BaseApiController
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "Có lỗi xảy ra", error = ex.Message });
+            return StatusCode(500, new { message = _localization.GetString("Error.Generic"), error = ex.Message });
         }
     }
 
@@ -128,14 +132,14 @@ public class UsersController : BaseApiController
             // Lấy UserId từ UserContext (đã được middleware inject)
             if (!_userContext.UserId.HasValue)
             {
-                return Unauthorized(new { message = "Không tìm thấy thông tin user từ token" });
+                return Unauthorized(new { message = _localization.GetString("Login.Unauthorized") });
             }
 
             var user = await _userService.GetCurrentUserAsync(_userContext.UserId.Value);
             
             if (user == null)
             {
-                return NotFound(new { message = "Không tìm thấy user" });
+                return NotFound(new { message = _localization.GetString("User.NotFound") });
             }
 
             return Ok(new
@@ -151,7 +155,7 @@ public class UsersController : BaseApiController
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "Có lỗi xảy ra", error = ex.Message });
+            return StatusCode(500, new { message = _localization.GetString("Error.Generic"), error = ex.Message });
         }
     }
 
@@ -177,7 +181,7 @@ public class UsersController : BaseApiController
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "Có lỗi xảy ra", error = ex.Message });
+            return StatusCode(500, new { message = _localization.GetString("Error.Generic"), error = ex.Message });
         }
     }
 
@@ -203,7 +207,7 @@ public class UsersController : BaseApiController
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "Có lỗi xảy ra", error = ex.Message });
+            return StatusCode(500, new { message = _localization.GetString("Error.Generic"), error = ex.Message });
         }
     }
 
@@ -337,7 +341,7 @@ public class UsersController : BaseApiController
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "Có lỗi xảy ra", error = ex.Message });
+            return StatusCode(500, new { message = _localization.GetString("Error.Generic"), error = ex.Message });
         }
     }
 
@@ -357,7 +361,7 @@ public class UsersController : BaseApiController
             var success = await _userService.UpdateAsync(user);
             if (!success)
             {
-                return NotFound(new { message = "Không tìm thấy user để cập nhật" });
+                return NotFound(new { message = _localization.GetString("User.NotFound") });
             }
             return Ok(new { message = "Cập nhật thành công" });
         }
@@ -367,7 +371,7 @@ public class UsersController : BaseApiController
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "Có lỗi xảy ra", error = ex.Message });
+            return StatusCode(500, new { message = _localization.GetString("Error.Generic"), error = ex.Message });
         }
     }
 
@@ -410,7 +414,7 @@ public class UsersController : BaseApiController
             return StatusCode(500, new 
             { 
                 success = false, 
-                message = "Có lỗi xảy ra khi chuyển tiền", 
+                message = _localization.GetString("Error.Generic"), 
                 error = ex.Message 
             });
         }
@@ -427,13 +431,13 @@ public class UsersController : BaseApiController
             var success = await _userService.DeleteAsync(id);
             if (!success)
             {
-                return NotFound(new { message = "Không tìm thấy user để xóa" });
+                return NotFound(new { message = _localization.GetString("User.NotFound") });
             }
             return Ok(new { message = "Xóa thành công" });
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "Có lỗi xảy ra", error = ex.Message });
+            return StatusCode(500, new { message = _localization.GetString("Error.Generic"), error = ex.Message });
         }
     }
 
@@ -472,7 +476,7 @@ public class UsersController : BaseApiController
             return StatusCode(500, new 
             { 
                 success = false, 
-                message = "Có lỗi xảy ra", 
+                message = _localization.GetString("Error.Generic"), 
                 error = ex.Message 
             });
         }
@@ -581,7 +585,7 @@ public class UsersController : BaseApiController
         }
         catch (Exception ex)
         {
-            return StatusCode(500, new { message = "Có lỗi xảy ra", error = ex.Message });
+            return StatusCode(500, new { message = _localization.GetString("Error.Generic"), error = ex.Message });
         }
     }
 

@@ -12,13 +12,15 @@ public class UserService : BaseService<User>, IUserService
     private readonly IUserRepository _userRepository;
     private readonly IJwtTokenService _jwtTokenService;
     private readonly IConfiguration _configuration;
+    private readonly ILocalizationService _localization;
 
-    public UserService(IUserRepository userRepository, IJwtTokenService jwtTokenService, IConfiguration configuration) 
+    public UserService(IUserRepository userRepository, IJwtTokenService jwtTokenService, IConfiguration configuration, ILocalizationService localization) 
         : base(userRepository)
     {
         _userRepository = userRepository;
         _jwtTokenService = jwtTokenService;
         _configuration = configuration;
+        _localization = localization;
     }
 
     protected override async Task ValidateEntityAsync(User entity)
@@ -26,12 +28,12 @@ public class UserService : BaseService<User>, IUserService
         // Validate các trường bắt buộc
         if (string.IsNullOrWhiteSpace(entity.Username))
         {
-            throw new ArgumentException("Username không được rỗng", nameof(entity.Username));
+            throw new ArgumentException(_localization.GetString("User.UsernameRequired"), nameof(entity.Username));
         }
 
         if (string.IsNullOrWhiteSpace(entity.Email))
         {
-            throw new ArgumentException("Email không được rỗng", nameof(entity.Email));
+            throw new ArgumentException(_localization.GetString("User.EmailRequired"), nameof(entity.Email));
         }
 
         // Validate SQL injection
@@ -44,13 +46,13 @@ public class UserService : BaseService<User>, IUserService
         // Kiểm tra username đã tồn tại chưa (khi tạo mới)
         if (entity.Id == 0 && await _userRepository.UsernameExistsAsync(entity.Username))
         {
-            throw new InvalidOperationException($"Username '{entity.Username}' đã tồn tại");
+            throw new InvalidOperationException(_localization.GetString("User.UsernameExists", entity.Username));
         }
 
         // Kiểm tra email đã tồn tại chưa (khi tạo mới)
         if (entity.Id == 0 && await _userRepository.EmailExistsAsync(entity.Email))
         {
-            throw new InvalidOperationException($"Email '{entity.Email}' đã tồn tại");
+            throw new InvalidOperationException(_localization.GetString("User.EmailExists", entity.Email));
         }
 
         await base.ValidateEntityAsync(entity);
@@ -60,7 +62,7 @@ public class UserService : BaseService<User>, IUserService
     {
         if (string.IsNullOrWhiteSpace(username))
         {
-            throw new ArgumentException("Username không được rỗng", nameof(username));
+            throw new ArgumentException(_localization.GetString("User.UsernameRequired"), nameof(username));
         }
 
         // Validate SQL injection
@@ -87,7 +89,7 @@ public class UserService : BaseService<User>, IUserService
             return new LoginResponse 
             { 
                 Success = false, 
-                Message = "Username không được rỗng" 
+                Message = _localization.GetString("Login.UsernameRequired") 
             };
         }
 
@@ -96,7 +98,7 @@ public class UserService : BaseService<User>, IUserService
             return new LoginResponse 
             { 
                 Success = false, 
-                Message = "Password không được rỗng" 
+                Message = _localization.GetString("Login.PasswordRequired") 
             };
         }
 
@@ -124,7 +126,7 @@ public class UserService : BaseService<User>, IUserService
                     return new LoginResponse
                     {
                         Success = false,
-                        Message = "Không tìm thấy thông tin user"
+                        Message = _localization.GetString("User.NotFound")
                     };
                 }
 
@@ -141,7 +143,7 @@ public class UserService : BaseService<User>, IUserService
                     UserId = userId.Value,
                     Token = token,
                     RefreshToken = refreshToken,
-                    Message = "Đăng nhập thành công" 
+                    Message = _localization.GetString("Login.Success") 
                 };
             }
             else
@@ -166,7 +168,7 @@ public class UserService : BaseService<User>, IUserService
             return new LoginResponse 
             { 
                 Success = false, 
-                Message = "Có lỗi xảy ra khi đăng nhập: " + ex.Message 
+                Message = _localization.GetString("Login.Failed", ex.Message) 
             };
         }
     }
@@ -179,7 +181,7 @@ public class UserService : BaseService<User>, IUserService
             return new RegisterResponse
             {
                 Success = false,
-                Message = "Username không được rỗng"
+                Message = _localization.GetString("User.UsernameRequired")
             };
         }
 
@@ -188,7 +190,7 @@ public class UserService : BaseService<User>, IUserService
             return new RegisterResponse
             {
                 Success = false,
-                Message = "Password không được rỗng"
+                Message = _localization.GetString("User.PasswordRequired")
             };
         }
 
@@ -222,7 +224,7 @@ public class UserService : BaseService<User>, IUserService
                 return new RegisterResponse
                 {
                     Success = false,
-                    Message = "Email đã tồn tại hoặc có lỗi khi tạo tài khoản"
+                    Message = _localization.GetString("Register.EmailExistsOrError")
                 };
             }
 
@@ -247,7 +249,7 @@ public class UserService : BaseService<User>, IUserService
                 return new RegisterResponse
                 {
                     Success = false,
-                    Message = "Đã tạo tài khoản nhưng có lỗi khi tạo thông tin chi tiết người chơi",
+                    Message = _localization.GetString("Register.AccountCreatedButDetailError"),
                     UserId = userId.Value
                 };
             }
@@ -255,7 +257,7 @@ public class UserService : BaseService<User>, IUserService
             return new RegisterResponse
             {
                 Success = true,
-                Message = "Đăng ký tài khoản thành công",
+                Message = _localization.GetString("Register.Success"),
                 UserId = userId.Value
             };
         }
@@ -351,7 +353,7 @@ public class UserService : BaseService<User>, IUserService
         return new TransferMoneyResponse
         {
             Success = true,
-            Message = $"Chuyển {amount} Xu thành công từ Member sang Tank qua mail. {sendMoneyResult.Message}",
+            Message = _localization.GetString("Money.TransferSuccess", amount, sendMoneyResult.Message),
             RemainingMemberMoney = transferResult.RemainingMemberMoney
         };
     }
@@ -391,7 +393,7 @@ public class UserService : BaseService<User>, IUserService
                 return new SendMoneyResponse
                 {
                     Success = false,
-                    Message = $"Tài khoản <strong>{userName}</strong> không tồn tại."
+                    Message = _localization.GetString("User.AccountNotFound", userName)
                 };
             }
 
@@ -437,13 +439,13 @@ public class UserService : BaseService<User>, IUserService
             {
                 // Log error but don't fail the operation
                 Console.WriteLine($"Warning: Could not send mail notification via CenterService: {ex.Message}");
-                mailNoticeMessage = $" (Lỗi thông báo: {ex.Message})";
+                mailNoticeMessage = _localization.GetString("Money.MailError", ex.Message);
             }
 
             return new SendMoneyResponse
             {
                 Success = true,
-                Message = $"Đã chuyển thành công <br /> {money} Xu <br /> {gold} Vàng <br /> {giftToken} Lễ kim <br /> cho tài khoản <strong>{userName}</strong>{mailNoticeMessage}"
+                Message = _localization.GetString("Money.TransferSuccessDetail", money, gold, giftToken, userName, mailNoticeMessage)
             };
         }
         catch (Exception ex)
@@ -451,7 +453,7 @@ public class UserService : BaseService<User>, IUserService
             return new SendMoneyResponse
             {
                 Success = false,
-                Message = $"Có lỗi xảy ra: {ex.Message}"
+                Message = _localization.GetString("Money.ErrorOccurred", ex.Message)
             };
         }
     }
