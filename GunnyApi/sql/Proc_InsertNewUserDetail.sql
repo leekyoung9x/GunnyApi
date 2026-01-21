@@ -12,7 +12,8 @@ ALTER PROCEDURE Proc_InsertNewUserDetail
     @NickName NVARCHAR(200),
     @exp INT,
     @gold INT,
-    @money INT
+    @money INT,
+    @sex bit
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -60,7 +61,7 @@ BEGIN
             CAST(N'2016-07-27 14:00:53.757' AS DateTime),    -- [Date]
             1,                                              -- [IsConsortia]
             0,                                              -- [ConsortiaID]
-            1,                                              -- [Sex]
+            @sex,                                              -- [Sex]
             0,                                              -- [Win]
             0,                                              -- [Total]
             0,                                              -- [Escape]
@@ -68,10 +69,10 @@ BEGIN
             N'',                                            -- [Honor]
             @gold,                                          -- [Gold]
             @money,                                         -- [Money]
-            N'',                                            -- [Style]
+            N',,,,,,,,,,,,,,,',                             -- [Style]
             N',,,,,,,,,,,,,,,',                             -- [Colors]
             1111112223,                                     -- [Hide]
-            70,                                             -- [Grade]
+            10,                                             -- [Grade]
             0,                                              -- [State]
             564,                                            -- [IsFirst]
             0,                                              -- [Repute]
@@ -177,7 +178,6 @@ BEGIN
         /* =========================================================
            3) INSERT Sys_Users_Extra (có IDENTITY_INSERT theo script bạn đưa)
            ========================================================= */
-        SET IDENTITY_INSERT [dbo].[Sys_Users_Extra] ON;
 
         INSERT INTO [dbo].[Sys_Users_Extra] (
             [UserID],            -- User id
@@ -187,8 +187,6 @@ BEGIN
             @UserID,                                        -- [UserID]
             0                                               -- [FreeSendMailCount]
         );
-
-        SET IDENTITY_INSERT [dbo].[Sys_Users_Extra] OFF;
 
         /* =========================================================
            4) INSERT Sys_Users_Fight
@@ -249,6 +247,8 @@ BEGIN
         /* =========================================================
            6) INSERT Sys_VIP_Info
            ========================================================= */
+        SET IDENTITY_INSERT [dbo].[Sys_VIP_Info] ON;
+         
         INSERT INTO [dbo].[Sys_VIP_Info] (
             [UserID],               -- User id
             [typeVIP],              -- Loại VIP
@@ -275,6 +275,8 @@ BEGIN
             0,                                              -- [VIPNextLevelDaysNeeded]
             1                                               -- [CanTakeVipReward]
         );
+
+        SET IDENTITY_INSERT [dbo].[Sys_VIP_Info] OFF;
 
         COMMIT TRANSACTION;
     END TRY

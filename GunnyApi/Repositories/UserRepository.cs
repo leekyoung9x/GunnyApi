@@ -146,10 +146,22 @@ public class UserRepository : BaseRepository<User>, IUserRepository
         // Validate input để chống SQL injection
         SqlInjectionProtection.ValidateInput(email, nameof(email));
 
-        var sql = "SELECT COUNT(1) FROM Users WHERE Email = @Email";
+        var sql = "SELECT COUNT(1) FROM Mem_Account WHERE Email = @Email";
         
         using var connection = _connectionFactory.CreateConnection();
         var count = await connection.ExecuteScalarAsync<int>(sql, new { Email = email });
+        return count > 0;
+    }
+
+    public async Task<bool> NicknameExistsAsync(string nickname)
+    {
+        // Validate input để chống SQL injection
+        SqlInjectionProtection.ValidateInput(nickname, nameof(nickname));
+
+        var sql = "SELECT COUNT(1) FROM Mem_Account WHERE Fullname = @Nickname";
+        
+        using var connection = _connectionFactory.CreateConnection();
+        var count = await connection.ExecuteScalarAsync<int>(sql, new { Nickname = nickname });
         return count > 0;
     }
 
@@ -347,7 +359,13 @@ public class UserRepository : BaseRepository<User>, IUserRepository
             // Kiểm tra email đã tồn tại chưa
             if (await EmailExistsAsync(username))
             {
-                return null;
+                throw new InvalidOperationException($"Email '{username}' đã tồn tại");
+            }
+
+            // Kiểm tra nickname đã tồn tại chưa
+            if (await NicknameExistsAsync(fullname))
+            {
+                throw new InvalidOperationException($"Nickname '{fullname}' đã tồn tại");
             }
 
             // Hash password bằng BCrypt

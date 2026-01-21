@@ -259,8 +259,18 @@ public class UserService : BaseService<User>, IUserService
                 UserId = userId.Value
             };
         }
+        catch (InvalidOperationException ex)
+        {
+            // Lỗi email hoặc nickname đã tồn tại
+            return new RegisterResponse
+            {
+                Success = false,
+                Message = ex.Message
+            };
+        }
         catch (SecurityException ex)
         {
+            // Lỗi SQL injection
             return new RegisterResponse
             {
                 Success = false,
@@ -272,7 +282,7 @@ public class UserService : BaseService<User>, IUserService
             return new RegisterResponse
             {
                 Success = false,
-                Message = "Có lỗi xảy ra khi đăng ký: " + ex.Message
+                Message = ex.Message
             };
         }
     }
