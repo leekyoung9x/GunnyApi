@@ -23,6 +23,16 @@ public class PaymentTiersSettings
     public bool Enabled { get; set; } = true;
 
     /// <summary>
+    /// Whether to add Gold to Tank database when payment is successful
+    /// </summary>
+    public bool EnableGoldReward { get; set; } = false;
+
+    /// <summary>
+    /// Whether to add GiftToken to Tank database when payment is successful
+    /// </summary>
+    public bool EnableGiftTokenReward { get; set; } = false;
+
+    /// <summary>
     /// Minimum payment amount allowed
     /// </summary>
     public decimal MinimumAmount { get; set; } = 0;

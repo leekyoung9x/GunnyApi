@@ -13,6 +13,40 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Kestrel Configuration from appsettings.json
+var kestrelSettings = builder.Configuration.GetSection("KestrelSettings").Get<KestrelSettings>();
+builder.Services.Configure<KestrelSettings>(builder.Configuration.GetSection("KestrelSettings"));
+
+builder.WebHost.ConfigureKestrel(serverOptions =>
+{
+    if (kestrelSettings!.ListenOnAllInterfaces)
+    {
+        // Listen on all network interfaces (0.0.0.0)
+        serverOptions.ListenAnyIP(kestrelSettings.HttpPort); // HTTP
+        
+        if (kestrelSettings.EnableHttps)
+        {
+            serverOptions.ListenAnyIP(kestrelSettings.HttpsPort, listenOptions =>
+            {
+                listenOptions.UseHttps(); // HTTPS
+            });
+        }
+    }
+    else
+    {
+        // Listen only on localhost (127.0.0.1)
+        serverOptions.ListenLocalhost(kestrelSettings.HttpPort); // HTTP
+        
+        if (kestrelSettings.EnableHttps)
+        {
+            serverOptions.ListenLocalhost(kestrelSettings.HttpsPort, listenOptions =>
+            {
+                listenOptions.UseHttps(); // HTTPS
+            });
+        }
+    }
+});
+
 // Add services to the container.
 
 // Database Connection Factory

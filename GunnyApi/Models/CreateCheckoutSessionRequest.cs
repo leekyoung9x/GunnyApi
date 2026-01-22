@@ -5,7 +5,14 @@ namespace GunnyApi.Models;
 /// </summary>
 public class CreateCheckoutSessionRequest
 {
-    public int Amount { get; set; }
+    /// <summary>
+    /// Payment amount in PHP (Philippine Peso)
+    /// Example: Amount = 50 means 50 PHP
+    /// Server will automatically convert to centavos (Amount * 100) when calling PayMongo
+    /// Must match one of the configured payment tiers
+    /// </summary>
+    public decimal Amount { get; set; }
+    
     public string Description { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
     public string? ImageUrl { get; set; }
