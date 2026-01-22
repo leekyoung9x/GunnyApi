@@ -12,7 +12,7 @@ public class LocalizationService : ILocalizationService
     public LocalizationService(IOptions<LocalizationSettings> settings)
     {
         _settings = settings.Value;
-        _currentLanguage = _settings.DefaultLanguage ?? "vi";
+        _currentLanguage = _settings.DefaultLanguage ?? "en";
         _translations = new Dictionary<string, Dictionary<string, string>>();
         
         LoadTranslations();
@@ -36,6 +36,13 @@ public class LocalizationService : ILocalizationService
             ["User.EmailRequired"] = "Email không được rỗng",
             ["User.PasswordRequired"] = "Password không được rỗng",
             ["User.AccountNotFound"] = "Tài khoản <strong>{0}</strong> không tồn tại.",
+            ["User.IdMismatch"] = "ID không khớp",
+            ["User.UpdateSuccess"] = "Cập nhật thành công",
+            ["User.DeleteSuccess"] = "Xóa thành công",
+            ["User.Unauthorized"] = "Không xác định được người dùng",
+            ["User.UsernameRequiredNotEmpty"] = "Tên tài khoản không được để trống",
+            ["User.AmountMustBePositive"] = "Số tiền phải lớn hơn 0",
+            ["User.ConnectionError"] = "Lỗi kết nối: {0}",
             
             // Login messages
             ["Login.Success"] = "Đăng nhập thành công",
@@ -43,6 +50,11 @@ public class LocalizationService : ILocalizationService
             ["Login.UsernameRequired"] = "Username không được rỗng",
             ["Login.PasswordRequired"] = "Password không được rỗng",
             ["Login.Unauthorized"] = "Không tìm thấy thông tin user từ token",
+            ["Login.InvalidUsername"] = "Vui lòng nhập tài khoản",
+            ["Login.InvalidPassword"] = "Vui lòng nhập đầy đủ thông tin",
+            ["Login.AuthFailed"] = "Đăng nhập thất bại",
+            ["Login.GameServerError"] = "Không thể kết nối game server: {0}",
+            ["Login.ServerError"] = "Có lỗi xảy ra: {0}",
             
             // Register messages
             ["Register.Success"] = "Đăng ký tài khoản thành công",
@@ -60,9 +72,12 @@ public class LocalizationService : ILocalizationService
             ["Server.GetListSuccess"] = "Lấy danh sách server thành công",
             ["Server.GetListError"] = "Có lỗi xảy ra khi lấy danh sách server: {0}",
             ["Server.LoginSuccess"] = "Đăng nhập game thành công",
+            ["Server.LoginFailed"] = "Đăng nhập game thất bại: {0}",
             ["Server.LoginError"] = "Có lỗi xảy ra khi đăng nhập game: {0}",
             ["Server.CreateKeySuccess"] = "Tạo key thành công",
             ["Server.CreateKeyError"] = "Có lỗi xảy ra khi tạo key: {0}",
+            ["Server.UsernameRequired"] = "Username không được để trống",
+            ["Server.LoginGameError"] = "Có lỗi xảy ra: {0}",
             
             // Payment messages
             ["Payment.CreateCheckoutSuccess"] = "Tạo phiên thanh toán thành công",
@@ -89,6 +104,13 @@ public class LocalizationService : ILocalizationService
             ["User.EmailRequired"] = "Email is required",
             ["User.PasswordRequired"] = "Password is required",
             ["User.AccountNotFound"] = "Account <strong>{0}</strong> does not exist.",
+            ["User.IdMismatch"] = "ID mismatch",
+            ["User.UpdateSuccess"] = "Update successful",
+            ["User.DeleteSuccess"] = "Delete successful",
+            ["User.Unauthorized"] = "Unable to identify user",
+            ["User.UsernameRequiredNotEmpty"] = "Username cannot be empty",
+            ["User.AmountMustBePositive"] = "Amount must be greater than 0",
+            ["User.ConnectionError"] = "Connection error: {0}",
             
             // Login messages
             ["Login.Success"] = "Login successful",
@@ -96,6 +118,11 @@ public class LocalizationService : ILocalizationService
             ["Login.UsernameRequired"] = "Username is required",
             ["Login.PasswordRequired"] = "Password is required",
             ["Login.Unauthorized"] = "User information not found in token",
+            ["Login.InvalidUsername"] = "Please enter your username",
+            ["Login.InvalidPassword"] = "Please enter all required information",
+            ["Login.AuthFailed"] = "Login failed",
+            ["Login.GameServerError"] = "Unable to connect to game server: {0}",
+            ["Login.ServerError"] = "An error occurred: {0}",
             
             // Register messages
             ["Register.Success"] = "Account registration successful",
@@ -113,9 +140,12 @@ public class LocalizationService : ILocalizationService
             ["Server.GetListSuccess"] = "Server list retrieved successfully",
             ["Server.GetListError"] = "An error occurred while retrieving server list: {0}",
             ["Server.LoginSuccess"] = "Game login successful",
+            ["Server.LoginFailed"] = "Game login failed: {0}",
             ["Server.LoginError"] = "An error occurred during game login: {0}",
             ["Server.CreateKeySuccess"] = "Key created successfully",
             ["Server.CreateKeyError"] = "An error occurred while creating key: {0}",
+            ["Server.UsernameRequired"] = "Username is required",
+            ["Server.LoginGameError"] = "An error occurred: {0}",
             
             // Payment messages
             ["Payment.CreateCheckoutSuccess"] = "Checkout session created successfully",
@@ -139,7 +169,7 @@ public class LocalizationService : ILocalizationService
         
         // Fallback to default language if current language doesn't have the key
         if (_currentLanguage != _settings.DefaultLanguage && 
-            _translations.TryGetValue(_settings.DefaultLanguage ?? "vi", out var defaultDict))
+            _translations.TryGetValue(_settings.DefaultLanguage ?? "en", out var defaultDict))
         {
             if (defaultDict.TryGetValue(key, out var defaultValue))
             {

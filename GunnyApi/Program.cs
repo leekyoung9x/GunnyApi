@@ -30,7 +30,7 @@ builder.Services.Configure<CorsSettings>(builder.Configuration.GetSection("CorsS
 
 // Localization Settings Configuration
 builder.Services.Configure<LocalizationSettings>(builder.Configuration.GetSection("LocalizationSettings"));
-builder.Services.AddSingleton<GunnyApi.Infrastructure.Services.ILocalizationService, GunnyApi.Infrastructure.Services.LocalizationService>();
+builder.Services.AddScoped<GunnyApi.Infrastructure.Services.ILocalizationService, GunnyApi.Infrastructure.Services.LocalizationService>();
 
 // HttpClient Factory và Service
 builder.Services.AddHttpClient();
