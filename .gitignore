@@ -401,6 +401,7 @@ FodyWeavers.xsd
 # Custom - Database connection strings với thông tin nhạy cảm
 appsettings.Development.json
 appsettings.Production.json
+appsettings.Local.json
 
 # Mac
 .DS_Store

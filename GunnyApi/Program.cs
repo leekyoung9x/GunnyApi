@@ -13,6 +13,9 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Load appsettings.Local.json if exists (for local secrets)
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+
 // Kestrel Configuration from appsettings.json
 var kestrelSettings = builder.Configuration.GetSection("KestrelSettings").Get<KestrelSettings>();
 builder.Services.Configure<KestrelSettings>(builder.Configuration.GetSection("KestrelSettings"));
