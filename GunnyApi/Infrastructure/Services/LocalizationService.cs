@@ -85,7 +85,27 @@ public class LocalizationService : ILocalizationService
             ["Payment.WebhookProcessSuccess"] = "Xử lý webhook thành công",
             ["Payment.WebhookProcessError"] = "Có lỗi xảy ra khi xử lý webhook: {0}",
             ["Payment.InvalidRequest"] = "Dữ liệu webhook không hợp lệ",
-            ["Payment.InvalidSignature"] = "Chữ ký webhook không hợp lệ"
+            ["Payment.InvalidSignature"] = "Chữ ký webhook không hợp lệ",
+            ["Payment.Unauthorized"] = "Không thể xác thực người dùng",
+            ["Payment.ConfigNotSetup"] = "Cấu hình thanh toán chưa được thiết lập",
+            ["Payment.CannotCreateSession"] = "Không thể tạo phiên thanh toán",
+            ["Payment.InvalidResponse"] = "Phản hồi từ cổng thanh toán không hợp lệ",
+            ["Payment.PaymentFor"] = "Thanh toán cho user: {0}",
+            ["Payment.TopupFor"] = "Nạp tiền vào tài khoản {0}",
+            
+            // Payment Tiers
+            ["PaymentTier.Tier1.Name"] = "Gói Khởi Đầu",
+            ["PaymentTier.Tier1.Description"] = "Gói nạp cơ bản cho người mới",
+            ["PaymentTier.Tier2.Name"] = "Gói Tiết Kiệm",
+            ["PaymentTier.Tier2.Description"] = "Nhận thêm 10% bonus và 50 Lễ Kim",
+            ["PaymentTier.Tier3.Name"] = "Gói Phổ Biến",
+            ["PaymentTier.Tier3.Description"] = "Nhận thêm 20% bonus và 150 Lễ Kim",
+            ["PaymentTier.Tier4.Name"] = "Gói Cao Cấp",
+            ["PaymentTier.Tier4.Description"] = "Nhận thêm 30% bonus và 500 Lễ Kim",
+            ["PaymentTier.Tier5.Name"] = "Gói VIP",
+            ["PaymentTier.Tier5.Description"] = "Nhận thêm 40% bonus và 1500 Lễ Kim",
+            ["PaymentTier.Tier6.Name"] = "Gói Đại Gia",
+            ["PaymentTier.Tier6.Description"] = "Nhận thêm 50% bonus và 4000 Lễ Kim"
         };
 
         // English translations
@@ -153,7 +173,27 @@ public class LocalizationService : ILocalizationService
             ["Payment.WebhookProcessSuccess"] = "Webhook processed successfully",
             ["Payment.WebhookProcessError"] = "An error occurred while processing webhook: {0}",
             ["Payment.InvalidRequest"] = "Invalid webhook data",
-            ["Payment.InvalidSignature"] = "Invalid webhook signature"
+            ["Payment.InvalidSignature"] = "Invalid webhook signature",
+            ["Payment.Unauthorized"] = "Unable to authenticate user",
+            ["Payment.ConfigNotSetup"] = "Payment configuration not set up",
+            ["Payment.CannotCreateSession"] = "Unable to create payment session",
+            ["Payment.InvalidResponse"] = "Invalid response from payment gateway",
+            ["Payment.PaymentFor"] = "Payment for user: {0}",
+            ["Payment.TopupFor"] = "Top-up for account {0}",
+            
+            // Payment Tiers
+            ["PaymentTier.Tier1.Name"] = "Starter Pack",
+            ["PaymentTier.Tier1.Description"] = "Basic top-up package for new players",
+            ["PaymentTier.Tier2.Name"] = "Value Pack",
+            ["PaymentTier.Tier2.Description"] = "Get extra 10% bonus and 50 Gift Tokens",
+            ["PaymentTier.Tier3.Name"] = "Popular Pack",
+            ["PaymentTier.Tier3.Description"] = "Get extra 20% bonus and 150 Gift Tokens",
+            ["PaymentTier.Tier4.Name"] = "Premium Pack",
+            ["PaymentTier.Tier4.Description"] = "Get extra 30% bonus and 500 Gift Tokens",
+            ["PaymentTier.Tier5.Name"] = "VIP Pack",
+            ["PaymentTier.Tier5.Description"] = "Get extra 40% bonus and 1500 Gift Tokens",
+            ["PaymentTier.Tier6.Name"] = "Tycoon Pack",
+            ["PaymentTier.Tier6.Description"] = "Get extra 50% bonus and 4000 Gift Tokens"
         };
     }
 

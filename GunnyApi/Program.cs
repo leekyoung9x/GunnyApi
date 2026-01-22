@@ -28,6 +28,9 @@ builder.Services.Configure<GameSettings>(builder.Configuration.GetSection("GameS
 // CORS Settings Configuration
 builder.Services.Configure<CorsSettings>(builder.Configuration.GetSection("CorsSettings"));
 
+// PaymentTiers Settings Configuration
+builder.Services.Configure<PaymentTiersSettings>(builder.Configuration.GetSection("PaymentTiersSettings"));
+
 // Localization Settings Configuration
 builder.Services.Configure<LocalizationSettings>(builder.Configuration.GetSection("LocalizationSettings"));
 builder.Services.AddScoped<GunnyApi.Infrastructure.Services.ILocalizationService, GunnyApi.Infrastructure.Services.LocalizationService>();
