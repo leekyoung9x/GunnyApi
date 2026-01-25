@@ -72,6 +72,10 @@ builder.Services.Configure<PaymentTiersSettings>(builder.Configuration.GetSectio
 builder.Services.Configure<LocalizationSettings>(builder.Configuration.GetSection("LocalizationSettings"));
 builder.Services.AddScoped<GunnyApi.Infrastructure.Services.ILocalizationService, GunnyApi.Infrastructure.Services.LocalizationService>();
 
+// Email Settings Configuration
+builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+builder.Services.AddScoped<GunnyApi.Infrastructure.Services.IEmailService, GunnyApi.Infrastructure.Services.EmailService>();
+
 // HttpClient Factory và Service
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IHttpClientService, HttpClientService>();
