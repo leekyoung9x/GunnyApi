@@ -14,7 +14,7 @@ public class UserService : BaseService<User>, IUserService
     private readonly IConfiguration _configuration;
     private readonly ILocalizationService _localization;
 
-    public UserService(IUserRepository userRepository, IJwtTokenService jwtTokenService, IConfiguration configuration, ILocalizationService localization) 
+    public UserService(IUserRepository userRepository, IJwtTokenService jwtTokenService, IConfiguration configuration, ILocalizationService localization)
         : base(userRepository)
     {
         _userRepository = userRepository;
@@ -86,19 +86,19 @@ public class UserService : BaseService<User>, IUserService
 
         if (string.IsNullOrWhiteSpace(request.UserName))
         {
-            return new LoginResponse 
-            { 
-                Success = false, 
-                Message = _localization.GetString("Login.UsernameRequired") 
+            return new LoginResponse
+            {
+                Success = false,
+                Message = _localization.GetString("Login.UsernameRequired")
             };
         }
 
         if (string.IsNullOrWhiteSpace(request.Password))
         {
-            return new LoginResponse 
-            { 
-                Success = false, 
-                Message = _localization.GetString("Login.PasswordRequired") 
+            return new LoginResponse
+            {
+                Success = false,
+                Message = _localization.GetString("Login.PasswordRequired")
             };
         }
 
@@ -112,8 +112,8 @@ public class UserService : BaseService<User>, IUserService
             );
 
             var userId = await _userRepository.LoginAsync(
-                request.ApplicationName, 
-                request.UserName, 
+                request.ApplicationName,
+                request.UserName,
                 request.Password
             );
 
@@ -137,38 +137,38 @@ public class UserService : BaseService<User>, IUserService
                 var token = _jwtTokenService.GenerateToken(user);
                 var refreshToken = _jwtTokenService.GenerateRefreshToken();
 
-                return new LoginResponse 
-                { 
-                    Success = true, 
+                return new LoginResponse
+                {
+                    Success = true,
                     UserId = userId.Value,
                     Token = token,
                     RefreshToken = refreshToken,
-                    Message = _localization.GetString("Login.Success") 
+                    Message = _localization.GetString("Login.Success")
                 };
             }
             else
             {
-                return new LoginResponse 
-                { 
-                    Success = false, 
-                    Message = "Tên đăng nhập hoặc mật khẩu không đúng" 
+                return new LoginResponse
+                {
+                    Success = false,
+                    Message = "Tên đăng nhập hoặc mật khẩu không đúng"
                 };
             }
         }
         catch (SecurityException ex)
         {
-            return new LoginResponse 
-            { 
-                Success = false, 
-                Message = ex.Message 
+            return new LoginResponse
+            {
+                Success = false,
+                Message = ex.Message
             };
         }
         catch (Exception ex)
         {
-            return new LoginResponse 
-            { 
-                Success = false, 
-                Message = _localization.GetString("Login.Failed", ex.Message) 
+            return new LoginResponse
+            {
+                Success = false,
+                Message = _localization.GetString("Login.Failed", ex.Message)
             };
         }
     }
@@ -214,8 +214,8 @@ public class UserService : BaseService<User>, IUserService
 
             // B1: Thêm dữ liệu vào Mem_Account và lấy UserID
             var userId = await _userRepository.RegisterUserAsync(
-                request.Username, 
-                request.Password, 
+                request.Username,
+                request.Password,
                 request.Nickname
             );
 
@@ -297,12 +297,12 @@ public class UserService : BaseService<User>, IUserService
         }
 
         var user = await _userRepository.GetByIdAsync(userId);
-        
+
         // Không trả về password
         if (user != null)
         {
             user.Password = string.Empty;
-            
+
             // Lấy thêm nickname từ bảng Sys_Users_Detail trong TankConnection
             // Username trong Mem_Account chính là email, dùng nó để query PlayerInfo
             try
@@ -349,7 +349,7 @@ public class UserService : BaseService<User>, IUserService
 
         // Step 1: Subtract money from Mem_Account
         var transferResult = await _userRepository.TransferMoneyAsync(userId, amount);
-        
+
         if (!transferResult.Success)
         {
             return transferResult;
@@ -357,7 +357,7 @@ public class UserService : BaseService<User>, IUserService
 
         // Step 2: Send money via mail to player in Tank database using email (email từ db member = username của db tank)
         var sendMoneyResult = await SendMoneyAsync(transferResult.UserEmail, 0, amount, 0);
-        
+
         if (!sendMoneyResult.Success)
         {
             // Note: Money already deducted from Mem_Account
@@ -407,7 +407,7 @@ public class UserService : BaseService<User>, IUserService
 
             // Get player by username (email) from Tank database using SP_Users_SingleByUserName
             var player = await _userRepository.GetPlayerByUserNameAsync(userName);
-            
+
             if (player == null)
             {
                 return new SendMoneyResponse
@@ -448,9 +448,9 @@ public class UserService : BaseService<User>, IUserService
             string mailNoticeMessage = "";
             try
             {
-                var centerServiceAddress = _configuration["CenterServiceSettings:ServerAddress"] 
+                var centerServiceAddress = _configuration["CenterServiceSettings:ServerAddress"]
                     ?? "net.tcp://127.0.0.1:2109/";
-                
+
                 using var client = CenterServiceClientFactory.CreateNetTcpClient(centerServiceAddress);
                 mailNoticeResult = client.MailNotice(player.UserID);
                 mailNoticeMessage = mailNoticeResult ? " (Đã gửi thông báo realtime)" : " (Không gửi được thông báo realtime)";
@@ -572,5 +572,209 @@ public class UserService : BaseService<User>, IUserService
                 Message = _localization.GetString("Password.ChangeFailed", ex.Message)
             };
         }
+    }
+
+    public async Task<UpdateProfileResponse> UpdateProfileAsync(int userId, UpdateProfileRequest request)
+    {
+        try
+        {
+            // Validate inputs
+            if (string.IsNullOrWhiteSpace(request.Username))
+            {
+                return new UpdateProfileResponse
+                {
+                    Success = false,
+                    Message = _localization.GetString("Profile.UsernameRequired")
+                };
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Nickname))
+            {
+                return new UpdateProfileResponse
+                {
+                    Success = false,
+                    Message = _localization.GetString("Profile.NicknameRequired")
+                };
+            }
+
+            // Validate SQL injection
+            SqlInjectionProtection.ValidateInputs(
+                (request.Username, nameof(request.Username)),
+                (request.Nickname, nameof(request.Nickname))
+            );
+
+            // Validate username (email format)
+            //if (!IsValidEmail(request.Username))
+            //{
+            //    return new UpdateProfileResponse
+            //    {
+            //        Success = false,
+            //        Message = _localization.GetString("Profile.InvalidEmailFormat")
+            //    };
+            //}
+
+            // Validate username length (email: 5-100 characters)
+            if (request.Username.Length < 5 || request.Username.Length > 100)
+            {
+                return new UpdateProfileResponse
+                {
+                    Success = false,
+                    Message = _localization.GetString("Profile.UsernameLengthInvalid")
+                };
+            }
+
+            // Validate nickname length (3-20 characters)
+            if (request.Nickname.Length < 3 || request.Nickname.Length > 20)
+            {
+                return new UpdateProfileResponse
+                {
+                    Success = false,
+                    Message = _localization.GetString("Profile.NicknameLengthInvalid")
+                };
+            }
+
+            // Validate nickname doesn't contain special characters (allow letters, numbers, spaces, underscore, dash)
+            if (!IsValidNickname(request.Nickname))
+            {
+                return new UpdateProfileResponse
+                {
+                    Success = false,
+                    Message = _localization.GetString("Profile.NicknameInvalidCharacters")
+                };
+            }
+
+            // Get current user info
+            var currentUser = await _userRepository.GetByIdAsync(userId);
+            if (currentUser == null)
+            {
+                return new UpdateProfileResponse
+                {
+                    Success = false,
+                    Message = _localization.GetString("User.NotFound")
+                };
+            }
+
+            // Get current nickname from Sys_Users_Detail
+            var currentPlayerInfo = await _userRepository.GetPlayerByUserNameAsync(currentUser.Email);
+            string currentNickname = currentPlayerInfo?.NickName ?? string.Empty;
+
+            bool usernameChanged = !string.Equals(currentUser.Email, request.Username, StringComparison.OrdinalIgnoreCase);
+            bool nicknameChanged = !string.Equals(currentNickname, request.Nickname, StringComparison.Ordinal);
+
+            // If nothing changed
+            if (!usernameChanged && !nicknameChanged)
+            {
+                return new UpdateProfileResponse
+                {
+                    Success = false,
+                    Message = _localization.GetString("Profile.NoChangesDetected")
+                };
+            }
+
+            // Check if new username already exists (excluding current user)
+            if (usernameChanged)
+            {
+                var usernameExists = await _userRepository.CheckUsernameExistsExcludingUserAsync(userId, request.Username);
+                if (usernameExists)
+                {
+                    return new UpdateProfileResponse
+                    {
+                        Success = false,
+                        Message = _localization.GetString("Profile.UsernameAlreadyExists", request.Username)
+                    };
+                }
+            }
+
+            // Check if new nickname already exists (excluding current user)
+            if (nicknameChanged)
+            {
+                var nicknameExists = await _userRepository.CheckNicknameExistsExcludingUserAsync(currentUser.Email, request.Nickname);
+                if (nicknameExists)
+                {
+                    return new UpdateProfileResponse
+                    {
+                        Success = false,
+                        Message = _localization.GetString("Profile.NicknameAlreadyExists", request.Nickname)
+                    };
+                }
+            }
+
+            // Update username if changed
+            if (usernameChanged)
+            {
+                var usernameUpdated = await _userRepository.UpdateUsernameAsync(userId, currentUser.Email, request.Username);
+                if (!usernameUpdated)
+                {
+                    return new UpdateProfileResponse
+                    {
+                        Success = false,
+                        Message = _localization.GetString("Profile.UpdateUsernameFailed")
+                    };
+                }
+            }
+
+            // Update nickname if changed
+            if (nicknameChanged)
+            {
+                // Use new username if it was changed, otherwise use current username
+                string usernameForNicknameUpdate = usernameChanged ? request.Username : currentUser.Email;
+                var nicknameUpdated = await _userRepository.UpdateNicknameAsync(usernameForNicknameUpdate, request.Nickname);
+                if (!nicknameUpdated)
+                {
+                    return new UpdateProfileResponse
+                    {
+                        Success = false,
+                        Message = _localization.GetString("Profile.UpdateNicknameFailed")
+                    };
+                }
+            }
+
+            return new UpdateProfileResponse
+            {
+                Success = true,
+                Message = _localization.GetString("Profile.UpdateSuccess"),
+                Data = new ProfileData
+                {
+                    Username = request.Username,
+                    Nickname = request.Nickname
+                }
+            };
+        }
+        catch (SecurityException ex)
+        {
+            return new UpdateProfileResponse
+            {
+                Success = false,
+                Message = ex.Message
+            };
+        }
+        catch (Exception ex)
+        {
+            return new UpdateProfileResponse
+            {
+                Success = false,
+                Message = _localization.GetString("Profile.UpdateFailed", ex.Message)
+            };
+        }
+    }
+
+    private bool IsValidEmail(string email)
+    {
+        try
+        {
+            var addr = new System.Net.Mail.MailAddress(email);
+            return addr.Address == email;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private bool IsValidNickname(string nickname)
+    {
+        // Allow letters (any language), numbers, spaces, underscore, and dash
+        // No special characters like @, #, $, %, etc.
+        return System.Text.RegularExpressions.Regex.IsMatch(nickname, @"^[\w\s\-]+$");
     }
 }

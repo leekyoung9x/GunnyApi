@@ -13,9 +13,9 @@ namespace GunnyApi.Repositories;
 
 public class UserRepository : BaseRepository<User>, IUserRepository
 {
-    protected override string TableName 
-    { 
-        get 
+    protected override string TableName
+    {
+        get
         {
             var encryptionMethod = _gameSettings.PasswordEncryptionMethod?.ToUpper() ?? "MD5";
             return encryptionMethod == "MD5" ? "Mem_Users" : "Mem_Account";
@@ -25,7 +25,7 @@ public class UserRepository : BaseRepository<User>, IUserRepository
     private readonly GameSettings _gameSettings;
     private readonly IConfiguration _configuration;
 
-    public UserRepository(IDbConnectionFactory connectionFactory, IOptions<GameSettings> gameSettings, IConfiguration configuration) 
+    public UserRepository(IDbConnectionFactory connectionFactory, IOptions<GameSettings> gameSettings, IConfiguration configuration)
         : base(connectionFactory)
     {
         _gameSettings = gameSettings.Value;
@@ -107,7 +107,7 @@ public class UserRepository : BaseRepository<User>, IUserRepository
 
         var encryptionMethod = _gameSettings.PasswordEncryptionMethod?.ToUpper() ?? "MD5";
         string sql;
-        
+
         if (encryptionMethod == "MD5")
         {
             // Query cho bảng Mem_Users (dùng UserName)
@@ -118,7 +118,7 @@ public class UserRepository : BaseRepository<User>, IUserRepository
             // Query cho bảng Mem_Account (dùng Email làm Username, IsBan = 0 là active)
             sql = "SELECT UserID as Id, Email as Username, Password, Email, Fullname as FullName, DATEADD(s, TimeCreate, '1970-01-01') as CreatedAt, CAST(CASE WHEN IsBan = 0 THEN 1 ELSE 0 END AS BIT) as IsActive FROM Mem_Account WHERE Email = @Username";
         }
-        
+
         using var connection = _connectionFactory.CreateConnection();
         return await connection.QueryFirstOrDefaultAsync<User>(sql, new { Username = username });
     }
@@ -135,7 +135,7 @@ public class UserRepository : BaseRepository<User>, IUserRepository
         SqlInjectionProtection.ValidateInput(username, nameof(username));
 
         var sql = "SELECT COUNT(1) FROM Users WHERE Username = @Username";
-        
+
         using var connection = _connectionFactory.CreateConnection();
         var count = await connection.ExecuteScalarAsync<int>(sql, new { Username = username });
         return count > 0;
@@ -147,7 +147,7 @@ public class UserRepository : BaseRepository<User>, IUserRepository
         SqlInjectionProtection.ValidateInput(email, nameof(email));
 
         var sql = "SELECT COUNT(1) FROM Mem_Account WHERE Email = @Email";
-        
+
         using var connection = _connectionFactory.CreateConnection();
         var count = await connection.ExecuteScalarAsync<int>(sql, new { Email = email });
         return count > 0;
@@ -159,7 +159,7 @@ public class UserRepository : BaseRepository<User>, IUserRepository
         SqlInjectionProtection.ValidateInput(nickname, nameof(nickname));
 
         var sql = "SELECT COUNT(1) FROM Mem_Account WHERE Fullname = @Nickname";
-        
+
         using var connection = _connectionFactory.CreateConnection();
         var count = await connection.ExecuteScalarAsync<int>(sql, new { Nickname = nickname });
         return count > 0;
@@ -204,7 +204,7 @@ public class UserRepository : BaseRepository<User>, IUserRepository
         {
             // Logic mới: Lấy user từ DB và verify password bằng BCrypt
             var user = await GetByUsernameWithPasswordAsync(userName);
-            
+
             if (user == null)
             {
                 return null; // User không tồn tại
@@ -212,7 +212,7 @@ public class UserRepository : BaseRepository<User>, IUserRepository
 
             // Verify password bằng BCrypt
             var isPasswordValid = BCryptHelper.VerifyPassword(password, user.Password);
-            
+
             if (!isPasswordValid)
             {
                 return null; // Password không đúng
@@ -252,8 +252,8 @@ public class UserRepository : BaseRepository<User>, IUserRepository
             // Step 1: Check if user has enough money in Mem_Account
             var checkMoneySql = "SELECT Money FROM Mem_Account WHERE UserID = @UserId";
             var currentMoney = await memberConnection.ExecuteScalarAsync<int?>(
-                checkMoneySql, 
-                new { UserId = userId }, 
+                checkMoneySql,
+                new { UserId = userId },
                 memberTransaction
             );
 
@@ -278,8 +278,8 @@ public class UserRepository : BaseRepository<User>, IUserRepository
             // Step 2: Get user's email for later use (email từ db member = username của db tank)
             var getEmailSql = "SELECT Email FROM Mem_Account WHERE UserID = @UserId";
             var userEmail = await memberConnection.ExecuteScalarAsync<string>(
-                getEmailSql, 
-                new { UserId = userId }, 
+                getEmailSql,
+                new { UserId = userId },
                 memberTransaction
             );
 
@@ -295,8 +295,8 @@ public class UserRepository : BaseRepository<User>, IUserRepository
             // Step 3: Subtract money from Mem_Account
             var updateMemberSql = "UPDATE Mem_Account SET Money = Money - @Amount WHERE UserID = @UserId";
             var memberRowsAffected = await memberConnection.ExecuteAsync(
-                updateMemberSql, 
-                new { UserId = userId, Amount = amount }, 
+                updateMemberSql,
+                new { UserId = userId, Amount = amount },
                 memberTransaction
             );
 
@@ -310,7 +310,7 @@ public class UserRepository : BaseRepository<User>, IUserRepository
 
             // Get updated balance
             var updatedMemberMoney = await memberConnection.ExecuteScalarAsync<int>(
-                "SELECT Money FROM Mem_Account WHERE UserID = @UserId", 
+                "SELECT Money FROM Mem_Account WHERE UserID = @UserId",
                 new { UserId = userId }
             );
 
@@ -409,7 +409,7 @@ public class UserRepository : BaseRepository<User>, IUserRepository
                 ?? throw new InvalidOperationException("Connection string 'TankConnection' not found.");
 
             using var connection = new SqlConnection(tankConnectionString);
-            
+
             var parameters = new DynamicParameters();
             parameters.Add("@UserID", userId);
             parameters.Add("@UserName", username);
@@ -447,7 +447,7 @@ public class UserRepository : BaseRepository<User>, IUserRepository
                 ?? throw new InvalidOperationException("Connection string 'TankConnection' not found.");
 
             using var connection = new SqlConnection(tankConnectionString);
-            
+
             var parameters = new DynamicParameters();
             parameters.Add("@NickName", nickName);
 
@@ -479,7 +479,7 @@ public class UserRepository : BaseRepository<User>, IUserRepository
                 ?? throw new InvalidOperationException("Connection string 'TankConnection' not found.");
 
             using var connection = new SqlConnection(tankConnectionString);
-            
+
             var parameters = new DynamicParameters();
             parameters.Add("@UserName", userName);
 
@@ -508,7 +508,7 @@ public class UserRepository : BaseRepository<User>, IUserRepository
                 ?? throw new InvalidOperationException("Connection string 'TankConnection' not found.");
 
             using var connection = new SqlConnection(tankConnectionString);
-            
+
             var parameters = new DynamicParameters();
             parameters.Add("@ID", dbType: DbType.Int32, direction: ParameterDirection.Output);
             parameters.Add("@Annex1", mail.Annex1 ?? "", DbType.String);
@@ -572,7 +572,7 @@ public class UserRepository : BaseRepository<User>, IUserRepository
             var encryptionMethod = _gameSettings.PasswordEncryptionMethod?.ToUpper() ?? "MD5";
 
             using var connection = _connectionFactory.CreateConnection();
-            
+
             // Get current password from database
             string getCurrentPasswordSql;
             if (encryptionMethod == "MD5")
@@ -643,6 +643,132 @@ public class UserRepository : BaseRepository<User>, IUserRepository
         catch (Exception ex)
         {
             throw new Exception($"Error changing password: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Update username (email) in Mem_Account and UserName in Sys_Users_Detail
+    /// </summary>
+    public async Task<bool> UpdateUsernameAsync(int userId, string oldUsername, string newUsername)
+    {
+        try
+        {
+            // Validate inputs
+            SqlInjectionProtection.ValidateInputs(
+                (oldUsername, nameof(oldUsername)),
+                (newUsername, nameof(newUsername))
+            );
+
+            // Update Mem_Account (DefaultConnection)
+            using var memberConnection = _connectionFactory.CreateConnection();
+            var updateMemAccountSql = "UPDATE Mem_Account SET Email = @NewUsername WHERE UserID = @UserId AND Email = @OldUsername";
+            var memberRowsAffected = await memberConnection.ExecuteAsync(
+                updateMemAccountSql,
+                new { UserId = userId, OldUsername = oldUsername, NewUsername = newUsername }
+            );
+
+            if (memberRowsAffected == 0)
+            {
+                return false; // User not found or username doesn't match
+            }
+
+            // Update Sys_Users_Detail (TankConnection)
+            var tankConnectionString = _configuration.GetConnectionString("TankConnection")
+                ?? throw new InvalidOperationException("Connection string 'TankConnection' not found.");
+
+            using var tankConnection = new SqlConnection(tankConnectionString);
+            var updateTankSql = "UPDATE Sys_Users_Detail SET UserName = @NewUsername WHERE UserName = @OldUsername";
+            await tankConnection.ExecuteAsync(
+                updateTankSql,
+                new { OldUsername = oldUsername, NewUsername = newUsername }
+            );
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Error updating username: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Update nickname in Sys_Users_Detail
+    /// </summary>
+    public async Task<bool> UpdateNicknameAsync(string username, string newNickname)
+    {
+        try
+        {
+            // Validate inputs
+            SqlInjectionProtection.ValidateInputs(
+                (username, nameof(username)),
+                (newNickname, nameof(newNickname))
+            );
+
+            // Update Sys_Users_Detail (TankConnection)
+            var tankConnectionString = _configuration.GetConnectionString("TankConnection")
+                ?? throw new InvalidOperationException("Connection string 'TankConnection' not found.");
+
+            using var connection = new SqlConnection(tankConnectionString);
+            var updateSql = "UPDATE Sys_Users_Detail SET NickName = @NewNickname WHERE UserName = @Username";
+            var rowsAffected = await connection.ExecuteAsync(
+                updateSql,
+                new { Username = username, NewNickname = newNickname }
+            );
+
+            return rowsAffected > 0;
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Error updating nickname: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Check if username exists excluding current user
+    /// </summary>
+    public async Task<bool> CheckUsernameExistsExcludingUserAsync(int userId, string username)
+    {
+        try
+        {
+            // Validate input
+            SqlInjectionProtection.ValidateInput(username, nameof(username));
+
+            var sql = "SELECT COUNT(1) FROM Mem_Account WHERE Email = @Username AND UserID != @UserId";
+
+            using var connection = _connectionFactory.CreateConnection();
+            var count = await connection.ExecuteScalarAsync<int>(sql, new { Username = username, UserId = userId });
+            return count > 0;
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Error checking username exists: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Check if nickname exists excluding current user
+    /// </summary>
+    public async Task<bool> CheckNicknameExistsExcludingUserAsync(string currentUsername, string nickname)
+    {
+        try
+        {
+            // Validate inputs
+            SqlInjectionProtection.ValidateInputs(
+                (currentUsername, nameof(currentUsername)),
+                (nickname, nameof(nickname))
+            );
+
+            var tankConnectionString = _configuration.GetConnectionString("TankConnection")
+                ?? throw new InvalidOperationException("Connection string 'TankConnection' not found.");
+
+            using var connection = new SqlConnection(tankConnectionString);
+            var sql = "SELECT COUNT(1) FROM Sys_Users_Detail WHERE NickName = @Nickname AND UserName != @Username";
+            var count = await connection.ExecuteScalarAsync<int>(sql, new { Nickname = nickname, Username = currentUsername });
+            return count > 0;
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Error checking nickname exists: {ex.Message}", ex);
         }
     }
 }

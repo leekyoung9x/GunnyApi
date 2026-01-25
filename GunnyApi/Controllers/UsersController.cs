@@ -244,6 +244,37 @@ public class UsersController : BaseApiController
     }
 
     /// <summary>
+    /// Update Profile API - Cập nhật username và/hoặc nickname
+    /// </summary>
+    [HttpPut("profile")]
+    public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
+    {
+        try
+        {
+            // Lấy UserId từ UserContext (đã được middleware inject)
+            if (!_userContext.UserId.HasValue)
+            {
+                return Unauthorized(new { message = _localization.GetString("Login.Unauthorized") });
+            }
+
+            var result = await _userService.UpdateProfileAsync(_userContext.UserId.Value, request);
+
+            if (result.Success)
+            {
+                return Ok(result);
+            }
+            else
+            {
+                return BadRequest(result);
+            }
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = _localization.GetString("Error.Generic"), error = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Login Game API - Đăng nhập và chuyển hướng đến game
     /// </summary>
     [HttpGet("login-game")]
