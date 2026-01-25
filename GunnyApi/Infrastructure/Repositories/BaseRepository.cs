@@ -101,13 +101,13 @@ public abstract class BaseRepository<T> : IBaseRepository<T> where T : class
         return await ExecuteQueryAsync<T>(sql, validateSql: false);
     }
 
-    public virtual async Task<int> AddAsync(T entity)
+    public virtual Task<int> AddAsync(T entity)
     {
         // Override trong derived class để implement logic cụ thể
         throw new NotImplementedException("Override AddAsync trong derived repository");
     }
 
-    public virtual async Task<bool> UpdateAsync(T entity)
+    public virtual Task<bool> UpdateAsync(T entity)
     {
         // Override trong derived class để implement logic cụ thể
         throw new NotImplementedException("Override UpdateAsync trong derived repository");

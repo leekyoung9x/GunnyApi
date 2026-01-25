@@ -736,7 +736,7 @@ public class UsersController : BaseApiController
                 });
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             // Trả về exception với code khác 0
             return Ok(new CreateKeyResponse

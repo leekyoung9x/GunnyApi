@@ -10,6 +10,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Options;
 using GunnyApi.Infrastructure.Settings;
 using GunnyApi.Infrastructure.Services;
+using GunnyApi.Repositories;
 
 namespace GunnyApi.Controllers;
 
@@ -23,6 +24,7 @@ public class PaymentController : BaseApiController
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly PaymentTiersSettings _paymentTiersSettings;
     private readonly ILocalizationService _localization;
+    private readonly IPaymentRepository _paymentRepository;
 
     public PaymentController(
         ILogger<PaymentController> logger,
@@ -30,7 +32,8 @@ public class PaymentController : BaseApiController
         IUserContext userContext,
         IHttpClientFactory httpClientFactory,
         IOptions<PaymentTiersSettings> paymentTiersSettings,
-        ILocalizationService localization)
+        ILocalizationService localization,
+        IPaymentRepository paymentRepository)
     {
         _logger = logger;
         _configuration = configuration;
@@ -38,6 +41,7 @@ public class PaymentController : BaseApiController
         _httpClientFactory = httpClientFactory;
         _paymentTiersSettings = paymentTiersSettings.Value;
         _localization = localization;
+        _paymentRepository = paymentRepository;
     }
 
     /// <summary>
@@ -158,6 +162,142 @@ public class PaymentController : BaseApiController
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving payment tier {TierId}", id);
+            return StatusCode(500, new
+            {
+                success = false,
+                message = _localization.GetString("Error.Generic"),
+                error = ex.Message
+            });
+        }
+    }
+
+    /// <summary>
+    /// Lấy lịch sử giao dịch của user hiện tại
+    /// </summary>
+    [HttpGet("history")]
+    [Authorize]
+    public async Task<IActionResult> GetPaymentHistory([FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 20)
+    {
+        try
+        {
+            if (!_userContext.UserId.HasValue)
+            {
+                return Unauthorized(new { message = _localization.GetString("Payment.Unauthorized") });
+            }
+
+            // Validate pagination
+            if (pageNumber < 1) pageNumber = 1;
+            if (pageSize < 1 || pageSize > 100) pageSize = 20;
+
+            var userId = _userContext.UserId.Value;
+            
+            // Get payment histories
+            var histories = await _paymentRepository.GetPaymentHistoriesByUserIdAsync(userId, pageNumber, pageSize);
+            var totalCount = await _paymentRepository.GetPaymentHistoryCountByUserIdAsync(userId);
+
+            // Map to DTO
+            var historyDtos = histories.Select(h => new PaymentHistoryDto
+            {
+                Id = h.Id,
+                Amount = h.Amount,
+                Currency = h.Currency,
+                Status = h.Status,
+                PaymentMethod = h.PaymentMethod,
+                Description = h.Description,
+                ProductName = h.ProductName,
+                MoneyReward = h.MoneyReward,
+                GoldReward = h.GoldReward,
+                GiftTokenReward = h.GiftTokenReward,
+                CheckoutSessionId = h.CheckoutSessionId,
+                PaymentId = h.PaymentId,
+                CheckoutUrl = h.CheckoutUrl,
+                CreatedAt = h.CreatedAt,
+                PaidAt = h.PaidAt,
+                ExpiresAt = h.ExpiresAt
+            }).ToList();
+
+            var response = new PaymentHistoryResponse
+            {
+                Success = true,
+                Message = _localization.GetString("Payment.HistoryRetrievedSuccess"),
+                Data = historyDtos,
+                TotalCount = totalCount
+            };
+
+            return Ok(response);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving payment history for user {UserId}", _userContext.UserId);
+            return StatusCode(500, new
+            {
+                success = false,
+                message = _localization.GetString("Payment.HistoryRetrievedError", ex.Message)
+            });
+        }
+    }
+
+    /// <summary>
+    /// Lấy chi tiết một giao dịch cụ thể
+    /// </summary>
+    [HttpGet("history/{id}")]
+    [Authorize]
+    public async Task<IActionResult> GetPaymentHistoryById(int id)
+    {
+        try
+        {
+            if (!_userContext.UserId.HasValue)
+            {
+                return Unauthorized(new { message = _localization.GetString("Payment.Unauthorized") });
+            }
+
+            var paymentHistory = await _paymentRepository.GetPaymentHistoryByIdAsync(id);
+
+            if (paymentHistory == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = _localization.GetString("Payment.HistoryNotFound")
+                });
+            }
+
+            // Verify user owns this payment history
+            if (paymentHistory.UserId != _userContext.UserId.Value)
+            {
+                return Forbid();
+            }
+
+            var historyDto = new PaymentHistoryDto
+            {
+                Id = paymentHistory.Id,
+                Amount = paymentHistory.Amount,
+                Currency = paymentHistory.Currency,
+                Status = paymentHistory.Status,
+                PaymentMethod = paymentHistory.PaymentMethod,
+                Description = paymentHistory.Description,
+                ProductName = paymentHistory.ProductName,
+                MoneyReward = paymentHistory.MoneyReward,
+                GoldReward = paymentHistory.GoldReward,
+                GiftTokenReward = paymentHistory.GiftTokenReward,
+                CheckoutSessionId = paymentHistory.CheckoutSessionId,
+                PaymentId = paymentHistory.PaymentId,
+                CheckoutUrl = paymentHistory.CheckoutUrl,
+                CreatedAt = paymentHistory.CreatedAt,
+                PaidAt = paymentHistory.PaidAt,
+                ExpiresAt = paymentHistory.ExpiresAt
+            };
+
+            return Ok(new
+            {
+                success = true,
+                message = "Payment history retrieved successfully",
+                data = historyDto
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving payment history {Id}", id);
             return StatusCode(500, new
             {
                 success = false,
@@ -326,15 +466,54 @@ public class PaymentController : BaseApiController
                 "Tạo checkout session thành công - User: {Username}, CheckoutId: {CheckoutId}, Amount: {Amount}",
                 username, payMongoResponse.Data.Id, request.Amount);
 
+            // Lưu vào Payment_History
+            try
+            {
+                // PayMongo không trả về ExpiresAt trong response, sẽ set null
+                DateTime? expiresAt = null;
+
+                var paymentHistory = new PaymentHistory
+                {
+                    UserId = _userContext.UserId ?? 0,
+                    Username = username,
+                    Amount = request.Amount,
+                    AmountInCentavos = amountInCentavos,
+                    Currency = currency,
+                    CheckoutSessionId = payMongoResponse.Data.Id,
+                    CheckoutUrl = payMongoResponse.Data.Attributes.CheckoutUrl,
+                    TierId = matchingTier.Id,
+                    MoneyReward = matchingTier.Money,
+                    GoldReward = matchingTier.Gold,
+                    GiftTokenReward = matchingTier.GiftToken,
+                    Status = "pending",
+                    Description = request.Description,
+                    ProductName = request.ProductName,
+                    Metadata = JsonSerializer.Serialize(payMongoResponse.Data.Attributes.Metadata),
+                    CreatedAt = DateTime.Now,
+                    ExpiresAt = expiresAt
+                };
+
+                var paymentHistoryId = await _paymentRepository.CreatePaymentHistoryAsync(paymentHistory);
+                
+                _logger.LogInformation(
+                    "Đã lưu payment history với ID: {PaymentHistoryId} cho checkout session: {CheckoutSessionId}",
+                    paymentHistoryId, payMongoResponse.Data.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Lỗi khi lưu payment history, nhưng vẫn trả về checkout URL cho user");
+                // Không throw exception, vẫn cho phép user thanh toán
+            }
+
             // Trả về response cho client
             var result = new CreateCheckoutSessionResponse
             {
-                CheckoutSessionId = payMongoResponse.Data.Id,
-                CheckoutUrl = payMongoResponse.Data.Attributes.CheckoutUrl,
-                ClientKey = payMongoResponse.Data.Attributes.ClientKey,
-                Description = payMongoResponse.Data.Attributes.Description,
+                CheckoutSessionId = payMongoResponse.Data.Id ?? string.Empty,
+                CheckoutUrl = payMongoResponse.Data.Attributes.CheckoutUrl ?? string.Empty,
+                ClientKey = payMongoResponse.Data.Attributes.ClientKey ?? string.Empty,
+                Description = payMongoResponse.Data.Attributes.Description ?? string.Empty,
                 Amount = amountInCentavos, // Trả về centavos để client biết số tiền thực tế trên PayMongo
-                Status = payMongoResponse.Data.Attributes.Status
+                Status = payMongoResponse.Data.Attributes.Status ?? string.Empty
             };
 
             return Ok(result);
@@ -618,6 +797,68 @@ public class PaymentController : BaseApiController
             {
                 _logger.LogWarning("Không thể cộng tiền vào tài khoản UserID: {UserId}", userId.Value);
             }
+
+            // Cập nhật Payment_History
+            try
+            {
+                var paymentHistory = await _paymentRepository.GetPaymentHistoryByCheckoutSessionIdAsync(eventAttributes.Data.Id ?? "");
+                
+                if (paymentHistory != null)
+                {
+                    paymentHistory.PaymentIntentId = payment.Attributes.PaymentIntentId ?? string.Empty;
+                    paymentHistory.PaymentId = payment.Id ?? string.Empty;
+                    paymentHistory.Status = "paid";
+                    paymentHistory.PaymentMethod = checkoutSession.PaymentMethodUsed;
+                    paymentHistory.EventType = eventAttributes.Type;
+                    paymentHistory.EventId = data.Id;
+                    paymentHistory.UpdatedAt = DateTime.Now;
+                    paymentHistory.PaidAt = DateTime.Now;
+                    paymentHistory.Metadata = JsonSerializer.Serialize(new
+                    {
+                        payment = new
+                        {
+                            id = payment.Id,
+                            amount = paymentAttrs.Amount,
+                            netAmount = paymentAttrs.NetAmount,
+                            fee = paymentAttrs.Fee,
+                            billing = paymentAttrs.Billing
+                        },
+                        checkoutSession = new
+                        {
+                            id = eventAttributes.Data.Id,
+                            paymentMethod = checkoutSession.PaymentMethodUsed,
+                            lineItems = checkoutSession.LineItems
+                        }
+                    });
+
+                    await _paymentRepository.UpdatePaymentHistoryAsync(paymentHistory);
+                    
+                    // Mark reward as processed
+                    bool rewardSuccess = rowsAffected > 0;
+                    string? rewardError = null;
+                    
+                    if (!rewardSuccess)
+                    {
+                        rewardError = "Không thể cộng tiền vào Mem_Account";
+                    }
+                    
+                    await _paymentRepository.MarkRewardAsProcessedAsync(paymentHistory.Id, rewardSuccess, rewardError);
+                    
+                    _logger.LogInformation(
+                        "Đã cập nhật payment history ID: {PaymentHistoryId} với status: paid, paymentId: {PaymentId}",
+                        paymentHistory.Id, payment.Id);
+                }
+                else
+                {
+                    _logger.LogWarning(
+                        "Không tìm thấy payment history với CheckoutSessionId: {CheckoutSessionId}",
+                        eventAttributes.Data.Id);
+                }
+            }
+            catch (Exception historyEx)
+            {
+                _logger.LogError(historyEx, "Lỗi khi cập nhật payment history");
+            }
         }
         catch (Exception ex)
         {
@@ -642,11 +883,44 @@ public class PaymentController : BaseApiController
                 checkoutSession.CustomerEmail
             );
         }
-        
-        // TODO: Implement your business logic here
-        // - Cập nhật trạng thái đơn hàng thành failed
-        // - Gửi thông báo cho user qua email
-        // - Log lý do thất bại nếu có
+
+        // Cập nhật Payment_History
+        try
+        {
+            var paymentHistory = await _paymentRepository.GetPaymentHistoryByCheckoutSessionIdAsync(data.Attributes?.Data?.Id ?? "");
+            
+            if (paymentHistory != null)
+            {
+                var payment = checkoutSession?.Payments?.FirstOrDefault();
+                
+                paymentHistory.Status = "failed";
+                paymentHistory.EventType = data.Attributes?.Type;
+                paymentHistory.EventId = data.Id;
+                paymentHistory.UpdatedAt = DateTime.Now;
+                
+                if (payment?.Id != null)
+                {
+                    paymentHistory.PaymentId = payment.Id;
+                }
+                
+                // Get failure information if available
+                if (payment?.Attributes != null)
+                {
+                    paymentHistory.FailureCode = payment.Attributes.Status;
+                    paymentHistory.FailureMessage = "Payment failed";
+                }
+
+                await _paymentRepository.UpdatePaymentHistoryAsync(paymentHistory);
+                
+                _logger.LogInformation(
+                    "Đã cập nhật payment history ID: {PaymentHistoryId} với status: failed",
+                    paymentHistory.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Lỗi khi cập nhật payment history cho failed payment");
+        }
         
         await Task.CompletedTask;
     }
@@ -710,6 +984,7 @@ public class PaymentController : BaseApiController
     [AllowAnonymous]
     public async Task<IActionResult> DebugWebhook([FromBody] dynamic webhookData)
     {
+        await Task.CompletedTask; // Suppress async warning
         try
         {
             // Serialize ra JSON với format đẹp

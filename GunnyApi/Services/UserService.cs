@@ -313,7 +313,7 @@ public class UserService : BaseService<User>, IUserService
                     if (playerInfo != null)
                     {
                         // Gán nickname vào FullName để trả về
-                        user.NickName = playerInfo.NickName;
+                        user.NickName = playerInfo.NickName ?? string.Empty;
                     }
                 }
             }

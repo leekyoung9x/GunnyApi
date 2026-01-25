@@ -118,6 +118,9 @@ public class LocalizationService : ILocalizationService
             ["Payment.InvalidResponse"] = "Phản hồi từ cổng thanh toán không hợp lệ",
             ["Payment.PaymentFor"] = "Thanh toán cho user: {0}",
             ["Payment.TopupFor"] = "Nạp tiền vào tài khoản {0}",
+            ["Payment.HistoryRetrievedSuccess"] = "Lấy lịch sử giao dịch thành công",
+            ["Payment.HistoryRetrievedError"] = "Có lỗi xảy ra khi lấy lịch sử giao dịch: {0}",
+            ["Payment.HistoryNotFound"] = "Không tìm thấy lịch sử giao dịch",
             
             // Payment Tiers
             ["PaymentTier.Tier1.Name"] = "Gói Khởi Đầu",
@@ -232,6 +235,9 @@ public class LocalizationService : ILocalizationService
             ["Payment.InvalidResponse"] = "Invalid response from payment gateway",
             ["Payment.PaymentFor"] = "Payment for user: {0}",
             ["Payment.TopupFor"] = "Top-up for account {0}",
+            ["Payment.HistoryRetrievedSuccess"] = "Payment history retrieved successfully",
+            ["Payment.HistoryRetrievedError"] = "An error occurred while retrieving payment history: {0}",
+            ["Payment.HistoryNotFound"] = "Payment history not found",
             
             // Payment Tiers
             ["PaymentTier.Tier1.Name"] = "Starter Pack",
