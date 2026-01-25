@@ -302,6 +302,26 @@ public class UserService : BaseService<User>, IUserService
         if (user != null)
         {
             user.Password = string.Empty;
+            
+            // Lấy thêm nickname từ bảng Sys_Users_Detail trong TankConnection
+            // Username trong Mem_Account chính là email, dùng nó để query PlayerInfo
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(user.Email))
+                {
+                    var playerInfo = await _userRepository.GetPlayerByUserNameAsync(user.Email);
+                    if (playerInfo != null)
+                    {
+                        // Gán nickname vào FullName để trả về
+                        user.NickName = playerInfo.NickName;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                // Log error nhưng không fail, vẫn trả về user info cơ bản
+                Console.WriteLine($"Warning: Could not get player nickname: {ex.Message}");
+            }
         }
 
         return user;

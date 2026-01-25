@@ -147,7 +147,8 @@ public class UsersController : BaseApiController
                 id = user.UserId,
                 username = user.Username,
                 email = user.Email,
-                fullName = user.FullName,
+                nickname = user.NickName,
+                fullname = user.FullName,
                 money = user.Money,
                 createdAt = user.CreatedAt,
                 isActive = user.IsActive
