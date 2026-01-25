@@ -144,7 +144,7 @@ public class UsersController : BaseApiController
 
             return Ok(new
             {
-                id = user.Id,
+                id = user.UserId,
                 username = user.Username,
                 email = user.Email,
                 fullName = user.FullName,
