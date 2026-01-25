@@ -6,6 +6,7 @@ Tài liệu này mô tả các API endpoint để lấy thông tin lịch sử g
 - [Xác Thực (Authentication)](#xác-thực-authentication)
 - [Endpoint 1: Lấy Danh Sách Lịch Sử Thanh Toán](#endpoint-1-lấy-danh-sách-lịch-sử-thanh-toán)
 - [Endpoint 2: Lấy Chi Tiết Một Giao Dịch](#endpoint-2-lấy-chi-tiết-một-giao-dịch)
+- [Endpoint 3: Hủy Giao Dịch Đang Chờ](#endpoint-3-hủy-giao-dịch-đang-chờ)
 - [Cấu Trúc Dữ Liệu](#cấu-trúc-dữ-liệu)
 - [Mã Code Mẫu](#mã-code-mẫu)
 - [Xử Lý Lỗi](#xử-lý-lỗi)
@@ -238,6 +239,102 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 ---
 
+## Endpoint 3: Hủy Giao Dịch Đang Chờ
+
+### **POST** `/api/payment/expire-checkout-session`
+
+Hủy (expire) một checkout session đang ở trạng thái pending. Sử dụng khi người dùng muốn hủy giao dịch mà họ đã tạo nhưng chưa thanh toán.
+
+**Lưu ý**: Chỉ có thể hủy được các giao dịch ở trạng thái `pending`. Các giao dịch đã `paid`, `failed`, hoặc `expired` không thể hủy.
+
+### Request Body
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `checkoutSessionId` | string | Yes | ID của checkout session cần hủy (lấy từ response khi tạo giao dịch) |
+
+### Request Example
+
+```http
+POST /api/payment/expire-checkout-session HTTP/1.1
+Host: your-api-domain.com
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Content-Type: application/json
+
+{
+  "checkoutSessionId": "cs_test_a1b2c3d4e5f6"
+}
+```
+
+### Response Success (200 OK)
+
+```json
+{
+  "success": true,
+  "message": "Hủy phiên thanh toán thành công",
+  "data": {
+    "checkoutSessionId": "cs_test_a1b2c3d4e5f6",
+    "status": "expired",
+    "expiredAt": "2026-01-25T15:30:45"
+  }
+}
+```
+
+### Response Error (400 Bad Request) - Invalid Session ID
+
+```json
+{
+  "success": false,
+  "message": "ID phiên thanh toán không hợp lệ"
+}
+```
+
+### Response Error (400 Bad Request) - Already Expired or Paid
+
+```json
+{
+  "success": false,
+  "message": "Phiên thanh toán đã bị hủy hoặc đã thanh toán",
+  "currentStatus": "paid"
+}
+```
+
+### Response Error (404 Not Found)
+
+```json
+{
+  "success": false,
+  "message": "Không tìm thấy phiên thanh toán"
+}
+```
+
+### Response Error (403 Forbidden)
+
+```json
+{
+  "success": false,
+  "message": "Bạn không có quyền hủy giao dịch này"
+}
+```
+
+### Use Cases
+
+**Khi nào nên sử dụng endpoint này:**
+
+1. **User thay đổi ý định**: Người dùng tạo giao dịch nhưng không muốn thanh toán nữa
+2. **Tạo giao dịch mới**: User muốn tạo giao dịch khác với số tiền khác
+3. **Quản lý UI**: Hiển thị nút "Hủy giao dịch" cho các giao dịch pending trong lịch sử
+4. **Cleanup**: Tự động hủy các giao dịch pending cũ để giữ dữ liệu sạch
+
+**Lợi ích:**
+
+- Giúp người dùng quản lý các giao dịch của mình tốt hơn
+- Tránh nhầm lẫn với các link thanh toán cũ
+- Cập nhật trạng thái trong database đồng bộ với PayMongo
+- Giảm số lượng giao dịch pending không sử dụng
+
+---
+
 ## Cấu Trúc Dữ Liệu
 
 ### Trạng Thái Giao Dịch (Status)
@@ -367,6 +464,56 @@ getPaymentDetail(123).then(transaction => {
     // Hiển thị chi tiết
   }
 });
+
+// Hủy giao dịch đang chờ
+async function expireCheckoutSession(checkoutSessionId) {
+  const token = localStorage.getItem('authToken');
+  
+  try {
+    const response = await fetch(
+      `https://your-api-domain.com/api/payment/expire-checkout-session`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          checkoutSessionId: checkoutSessionId
+        })
+      }
+    );
+
+    const result = await response.json();
+    
+    if (result.success) {
+      console.log('Hủy giao dịch thành công:', result.data);
+      console.log(`Session ID: ${result.data.checkoutSessionId}`);
+      console.log(`Trạng thái mới: ${result.data.status}`);
+      console.log(`Thời gian hủy: ${new Date(result.data.expiredAt).toLocaleString()}`);
+      
+      return result.data;
+    } else {
+      console.error('Lỗi:', result.message);
+      if (result.currentStatus) {
+        console.log('Trạng thái hiện tại:', result.currentStatus);
+      }
+      return null;
+    }
+  } catch (error) {
+    console.error('Network error:', error);
+    return null;
+  }
+}
+
+// Sử dụng
+expireCheckoutSession('cs_test_a1b2c3d4e5f6').then(result => {
+  if (result) {
+    alert('Giao dịch đã được hủy thành công!');
+    // Refresh danh sách lịch sử
+    getPaymentHistory(1, 20);
+  }
+});
 ```
 
 ### React Hooks Example
@@ -413,6 +560,41 @@ function PaymentHistoryComponent() {
     }
   };
 
+  const expireTransaction = async (checkoutSessionId) => {
+    if (!window.confirm('Bạn có chắc muốn hủy giao dịch này?')) {
+      return;
+    }
+
+    const token = localStorage.getItem('authToken');
+
+    try {
+      const response = await fetch(
+        'https://your-api-domain.com/api/payment/expire-checkout-session',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ checkoutSessionId })
+        }
+      );
+
+      const result = await response.json();
+      
+      if (result.success) {
+        alert('Hủy giao dịch thành công!');
+        // Refresh danh sách
+        fetchPaymentHistory();
+      } else {
+        alert(`Lỗi: ${result.message}`);
+      }
+    } catch (error) {
+      console.error('Error expiring transaction:', error);
+      alert('Có lỗi xảy ra khi hủy giao dịch');
+    }
+  };
+
   const totalPages = Math.ceil(totalCount / pageSize);
 
   return (
@@ -431,6 +613,7 @@ function PaymentHistoryComponent() {
                 <th>Trạng Thái</th>
                 <th>Phương Thức</th>
                 <th>Thời Gian</th>
+                <th>Hành Động</th>
               </tr>
             </thead>
             <tbody>
@@ -445,6 +628,16 @@ function PaymentHistoryComponent() {
                   </td>
                   <td>{tx.paymentMethod || 'N/A'}</td>
                   <td>{new Date(tx.createdAt).toLocaleString()}</td>
+                  <td>
+                    {tx.status === 'pending' && (
+                      <button 
+                        onClick={() => expireTransaction(tx.checkoutSessionId)}
+                        className="btn-cancel"
+                      >
+                        Hủy
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -579,6 +772,57 @@ public class PaymentHistoryService
             return null;
         }
     }
+
+    // Hủy giao dịch đang chờ
+    public async Task<ExpireCheckoutSessionResponse> ExpireCheckoutSessionAsync(string checkoutSessionId)
+    {
+        try
+        {
+            _httpClient.DefaultRequestHeaders.Authorization = 
+                new AuthenticationHeaderValue("Bearer", _token);
+
+            var url = $"{_baseUrl}/api/payment/expire-checkout-session";
+            
+            var requestBody = new 
+            { 
+                checkoutSessionId = checkoutSessionId 
+            };
+            
+            var jsonContent = JsonSerializer.Serialize(requestBody);
+            var content = new StringContent(jsonContent, System.Text.Encoding.UTF8, "application/json");
+            
+            var response = await _httpClient.PostAsync(url, content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var json = await response.Content.ReadAsStringAsync();
+                var result = JsonSerializer.Deserialize<ExpireCheckoutSessionResponse>(json, 
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                
+                if (result.Success)
+                {
+                    Console.WriteLine($"Hủy giao dịch thành công:");
+                    Console.WriteLine($"  Session ID: {result.Data.CheckoutSessionId}");
+                    Console.WriteLine($"  Trạng thái: {result.Data.Status}");
+                    Console.WriteLine($"  Thời gian hủy: {result.Data.ExpiredAt}");
+                }
+                
+                return result;
+            }
+            else
+            {
+                Console.WriteLine($"Error: {response.StatusCode}");
+                var errorContent = await response.Content.ReadAsStringAsync();
+                Console.WriteLine($"Error details: {errorContent}");
+                return null;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Exception: {ex.Message}");
+            return null;
+        }
+    }
 }
 
 // Models
@@ -617,6 +861,20 @@ public class PaymentTransaction
     public bool IsExpired { get; set; }
 }
 
+public class ExpireCheckoutSessionResponse
+{
+    public bool Success { get; set; }
+    public string Message { get; set; }
+    public ExpireCheckoutSessionData Data { get; set; }
+}
+
+public class ExpireCheckoutSessionData
+{
+    public string CheckoutSessionId { get; set; }
+    public string Status { get; set; }
+    public DateTime? ExpiredAt { get; set; }
+}
+
 // Sử dụng
 class Program
 {
@@ -624,6 +882,36 @@ class Program
     {
         var token = "your_jwt_token_here";
         var service = new PaymentHistoryService(token);
+
+        // Lấy lịch sử
+        var history = await service.GetPaymentHistoryAsync(1, 20);
+        
+        if (history != null && history.Success)
+        {
+            // Tính tổng tiền đã nạp
+            decimal totalPaid = 0;
+            foreach (var tx in history.Data)
+            {
+                if (tx.IsPaid)
+                {
+                    totalPaid += tx.Amount;
+                }
+            }
+            Console.WriteLine($"Tổng tiền đã nạp: {totalPaid} PHP");
+        }
+
+        // Lấy chi tiết
+        var detail = await service.GetPaymentDetailAsync(123);
+
+        // Hủy giao dịch
+        var expireResult = await service.ExpireCheckoutSessionAsync("cs_test_a1b2c3d4e5f6");
+        if (expireResult != null && expireResult.Success)
+        {
+            Console.WriteLine("Đã hủy giao dịch thành công!");
+        }
+    }
+}
+```
 
         // Lấy lịch sử
         var history = await service.GetPaymentHistoryAsync(1, 20);
@@ -730,6 +1018,42 @@ class PaymentHistoryClient:
             print(f"Request error: {e}")
             return None
     
+    def expire_checkout_session(self, checkout_session_id: str) -> Optional[Dict]:
+        """Hủy một checkout session đang chờ"""
+        try:
+            url = f"{self.base_url}/api/payment/expire-checkout-session"
+            
+            payload = {
+                'checkoutSessionId': checkout_session_id
+            }
+            
+            response = requests.post(url, headers=self.headers, json=payload)
+            response.raise_for_status()
+            
+            result = response.json()
+            
+            if result.get('success'):
+                data = result.get('data', {})
+                
+                print(f"Hủy giao dịch thành công:")
+                print(f"  Session ID: {data.get('checkoutSessionId')}")
+                print(f"  Trạng thái: {data.get('status')}")
+                
+                if data.get('expiredAt'):
+                    expired_at = datetime.fromisoformat(data['expiredAt'].replace('Z', '+00:00'))
+                    print(f"  Thời gian hủy: {expired_at.strftime('%Y-%m-%d %H:%M:%S')}")
+                
+                return data
+            else:
+                print(f"Error: {result.get('message')}")
+                if result.get('currentStatus'):
+                    print(f"Trạng thái hiện tại: {result.get('currentStatus')}")
+                return None
+                
+        except requests.exceptions.RequestException as e:
+            print(f"Request error: {e}")
+            return None
+    
     def print_transaction_summary(self, transactions: List[Dict]):
         """In tóm tắt danh sách giao dịch"""
         print("\n" + "="*80)
@@ -767,6 +1091,17 @@ if __name__ == "__main__":
         if history['data']:
             first_tx_id = history['data'][0]['id']
             detail = client.get_payment_detail(first_tx_id)
+            
+            # Nếu có giao dịch pending, thử hủy
+            pending_transactions = [tx for tx in history['data'] if tx['status'] == 'pending']
+            if pending_transactions:
+                first_pending = pending_transactions[0]
+                print(f"\nTìm thấy giao dịch pending: {first_pending['checkoutSessionId']}")
+                
+                # Hủy giao dịch
+                expire_result = client.expire_checkout_session(first_pending['checkoutSessionId'])
+                if expire_result:
+                    print("✓ Đã hủy giao dịch thành công!")
 ```
 
 ### PHP
@@ -854,6 +1189,50 @@ class PaymentHistoryClient {
         
         return null;
     }
+    
+    // Hủy giao dịch đang chờ
+    public function expireCheckoutSession($checkoutSessionId) {
+        $url = $this->baseUrl . "/api/payment/expire-checkout-session";
+        
+        $payload = json_encode([
+            'checkoutSessionId' => $checkoutSessionId
+        ]);
+        
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, $url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Authorization: Bearer ' . $this->token,
+            'Content-Type: application/json'
+        ]);
+        
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        
+        if ($httpCode == 200) {
+            $result = json_decode($response, true);
+            
+            if ($result['success']) {
+                $data = $result['data'];
+                
+                echo "Hủy giao dịch thành công:\n";
+                echo "  Session ID: {$data['checkoutSessionId']}\n";
+                echo "  Trạng thái: {$data['status']}\n";
+                echo "  Thời gian hủy: {$data['expiredAt']}\n";
+                
+                return $data;
+            } else {
+                echo "Lỗi: {$result['message']}\n";
+            }
+        } else {
+            echo "HTTP Error: {$httpCode}\n";
+        }
+        
+        return null;
+    }
 }
 
 // Sử dụng
@@ -868,6 +1247,18 @@ $transactions = $client->getPaymentHistory(1, 20);
 if ($transactions) {
     foreach ($transactions as $tx) {
         echo "ID: {$tx['id']}, Amount: {$tx['amount']} PHP, Status: {$tx['status']}\n";
+    }
+    
+    // Hủy giao dịch pending (nếu có)
+    foreach ($transactions as $tx) {
+        if ($tx['status'] == 'pending') {
+            echo "\nTìm thấy giao dịch pending, đang hủy...\n";
+            $expireResult = $client->expireCheckoutSession($tx['checkoutSessionId']);
+            if ($expireResult) {
+                echo "✓ Đã hủy giao dịch thành công!\n";
+            }
+            break; // Chỉ hủy 1 giao dịch đầu tiên
+        }
     }
 }
 

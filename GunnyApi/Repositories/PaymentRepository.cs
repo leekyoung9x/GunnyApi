@@ -161,4 +161,30 @@ public class PaymentRepository : IPaymentRepository
 
         return affectedRows > 0;
     }
+
+    public async Task<bool> UpdatePaymentStatusAsync(string checkoutSessionId, string status, DateTime? expiredAt = null)
+    {
+        // Validate inputs
+        SqlInjectionProtection.ValidateInputs(
+            (checkoutSessionId, nameof(checkoutSessionId)),
+            (status, nameof(status))
+        );
+
+        var sql = @"
+            UPDATE Payment_History SET
+                Status = @Status,
+                ExpiresAt = COALESCE(@ExpiresAt, ExpiresAt),
+                UpdatedAt = GETDATE()
+            WHERE CheckoutSessionId = @CheckoutSessionId";
+
+        using var connection = _connectionFactory.CreateConnection();
+        var affectedRows = await connection.ExecuteAsync(sql, new
+        {
+            CheckoutSessionId = checkoutSessionId,
+            Status = status,
+            ExpiresAt = expiredAt
+        });
+
+        return affectedRows > 0;
+    }
 }

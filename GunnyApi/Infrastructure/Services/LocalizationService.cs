@@ -121,6 +121,11 @@ public class LocalizationService : ILocalizationService
             ["Payment.HistoryRetrievedSuccess"] = "Lấy lịch sử giao dịch thành công",
             ["Payment.HistoryRetrievedError"] = "Có lỗi xảy ra khi lấy lịch sử giao dịch: {0}",
             ["Payment.HistoryNotFound"] = "Không tìm thấy lịch sử giao dịch",
+            ["Payment.ExpireSuccess"] = "Hủy phiên thanh toán thành công",
+            ["Payment.ExpireError"] = "Không thể hủy phiên thanh toán: {0}",
+            ["Payment.ExpireNotFound"] = "Không tìm thấy phiên thanh toán",
+            ["Payment.ExpireInvalidSession"] = "ID phiên thanh toán không hợp lệ",
+            ["Payment.ExpireAlreadyExpired"] = "Phiên thanh toán đã bị hủy hoặc đã thanh toán",
             
             // Payment Tiers
             ["PaymentTier.Tier1.Name"] = "Gói Khởi Đầu",
@@ -238,6 +243,11 @@ public class LocalizationService : ILocalizationService
             ["Payment.HistoryRetrievedSuccess"] = "Payment history retrieved successfully",
             ["Payment.HistoryRetrievedError"] = "An error occurred while retrieving payment history: {0}",
             ["Payment.HistoryNotFound"] = "Payment history not found",
+            ["Payment.ExpireSuccess"] = "Checkout session expired successfully",
+            ["Payment.ExpireError"] = "Cannot expire checkout session: {0}",
+            ["Payment.ExpireNotFound"] = "Checkout session not found",
+            ["Payment.ExpireInvalidSession"] = "Invalid checkout session ID",
+            ["Payment.ExpireAlreadyExpired"] = "Checkout session is already expired or paid",
             
             // Payment Tiers
             ["PaymentTier.Tier1.Name"] = "Starter Pack",

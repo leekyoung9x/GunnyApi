@@ -308,6 +308,182 @@ public class PaymentController : BaseApiController
     }
 
     /// <summary>
+    /// Hủy (Expire) một Checkout Session - Sử dụng khi user muốn hủy giao dịch đang chờ
+    /// </summary>
+    [HttpPost("expire-checkout-session")]
+    [Authorize]
+    public async Task<IActionResult> ExpireCheckoutSession([FromBody] ExpireCheckoutSessionRequest request)
+    {
+        try
+        {
+            // Validate request
+            if (string.IsNullOrEmpty(request.CheckoutSessionId))
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = _localization.GetString("Payment.ExpireInvalidSession")
+                });
+            }
+
+            // Lấy thông tin user từ token
+            var username = _userContext.Username;
+            if (string.IsNullOrEmpty(username) || !_userContext.UserId.HasValue)
+            {
+                return Unauthorized(new { message = _localization.GetString("Payment.Unauthorized") });
+            }
+
+            // Kiểm tra payment history có tồn tại và thuộc về user không
+            var paymentHistory = await _paymentRepository.GetPaymentHistoryByCheckoutSessionIdAsync(request.CheckoutSessionId);
+            
+            if (paymentHistory == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = _localization.GetString("Payment.ExpireNotFound")
+                });
+            }
+
+            // Verify user owns this payment
+            if (paymentHistory.UserId != _userContext.UserId.Value)
+            {
+                return Forbid();
+            }
+
+            // Kiểm tra trạng thái - chỉ expire được nếu đang pending
+            if (paymentHistory.Status != "pending")
+            {
+                return BadRequest(new
+                {
+                    success = false,
+                    message = _localization.GetString("Payment.ExpireAlreadyExpired"),
+                    currentStatus = paymentHistory.Status
+                });
+            }
+
+            _logger.LogInformation(
+                "User {Username} (ID: {UserId}) đang expire checkout session: {CheckoutSessionId}",
+                username, _userContext.UserId.Value, request.CheckoutSessionId);
+
+            // Lấy cấu hình PayMongo
+            var apiUrl = _configuration["PayMongoSettings:ApiUrl"];
+            var secretKey = _configuration["PayMongoSettings:SecretKey"];
+
+            if (string.IsNullOrEmpty(apiUrl) || string.IsNullOrEmpty(secretKey))
+            {
+                _logger.LogError("PayMongo settings chưa được cấu hình");
+                return StatusCode(500, new { message = _localization.GetString("Payment.ConfigNotSetup") });
+            }
+
+            // Gọi PayMongo API để expire checkout session
+            var httpClient = _httpClientFactory.CreateClient();
+            var endpoint = $"{apiUrl}/checkout_sessions/{request.CheckoutSessionId}/expire";
+
+            // Tạo Basic Auth
+            var authBytes = Encoding.UTF8.GetBytes($"{secretKey}:");
+            var authHeader = Convert.ToBase64String(authBytes);
+
+            httpClient.DefaultRequestHeaders.Clear();
+            httpClient.DefaultRequestHeaders.Add("Authorization", $"Basic {authHeader}");
+
+            _logger.LogInformation("Gửi expire request tới PayMongo: {Endpoint}", endpoint);
+
+            // PayMongo expire endpoint là POST request với empty body
+            var content = new StringContent("{}", Encoding.UTF8, "application/json");
+            var response = await httpClient.PostAsync(endpoint, content);
+            var responseContent = await response.Content.ReadAsStringAsync();
+
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogError("PayMongo API trả về lỗi khi expire: {StatusCode} - {Response}", 
+                    response.StatusCode, responseContent);
+                
+                // Parse error message nếu có
+                string errorMessage = responseContent;
+                try
+                {
+                    var errorJson = JsonSerializer.Deserialize<JsonElement>(responseContent);
+                    if (errorJson.TryGetProperty("errors", out var errors) && errors.GetArrayLength() > 0)
+                    {
+                        var firstError = errors[0];
+                        if (firstError.TryGetProperty("detail", out var detail))
+                        {
+                            errorMessage = detail.GetString() ?? responseContent;
+                        }
+                    }
+                }
+                catch
+                {
+                    // Ignore parse error
+                }
+
+                return StatusCode((int)response.StatusCode, new 
+                { 
+                    success = false,
+                    message = _localization.GetString("Payment.ExpireError", errorMessage)
+                });
+            }
+
+            // Parse response từ PayMongo
+            var payMongoResponse = JsonSerializer.Deserialize<PayMongoCheckoutSessionResponse>(
+                responseContent, 
+                new JsonSerializerOptions 
+                { 
+                    PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+                    PropertyNameCaseInsensitive = true 
+                });
+
+            if (payMongoResponse?.Data == null)
+            {
+                _logger.LogError("PayMongo expire response không hợp lệ");
+                return StatusCode(500, new { message = _localization.GetString("Payment.InvalidResponse") });
+            }
+
+            // Cập nhật status trong database
+            var expiredAt = DateTime.Now;
+            var updateSuccess = await _paymentRepository.UpdatePaymentStatusAsync(
+                request.CheckoutSessionId, 
+                "expired", 
+                expiredAt
+            );
+
+            if (!updateSuccess)
+            {
+                _logger.LogWarning("Không thể cập nhật payment history sau khi expire thành công trên PayMongo");
+            }
+
+            _logger.LogInformation(
+                "Expire checkout session thành công - User: {Username}, CheckoutId: {CheckoutId}, Status: {Status}",
+                username, request.CheckoutSessionId, payMongoResponse.Data.Attributes.Status);
+
+            // Trả về response
+            var result = new ExpireCheckoutSessionResponse
+            {
+                Success = true,
+                Message = _localization.GetString("Payment.ExpireSuccess"),
+                Data = new ExpireCheckoutSessionData
+                {
+                    CheckoutSessionId = payMongoResponse.Data.Id ?? string.Empty,
+                    Status = payMongoResponse.Data.Attributes.Status ?? "expired",
+                    ExpiredAt = expiredAt
+                }
+            };
+
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Lỗi khi expire checkout session: {CheckoutSessionId}", request.CheckoutSessionId);
+            return StatusCode(500, new 
+            { 
+                success = false,
+                message = _localization.GetString("Payment.ExpireError", ex.Message) 
+            });
+        }
+    }
+
+    /// <summary>
     /// Tạo Checkout Session với PayMongo
     /// </summary>
     [HttpPost("create-checkout-session")]

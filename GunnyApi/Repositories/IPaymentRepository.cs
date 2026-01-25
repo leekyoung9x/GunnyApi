@@ -13,4 +13,5 @@ public interface IPaymentRepository
     Task<int> GetPaymentHistoryCountByUserIdAsync(int userId);
     Task<IEnumerable<PaymentHistory>> GetPendingPaymentsAsync();
     Task<bool> MarkRewardAsProcessedAsync(int paymentHistoryId, bool success, string? errorMessage = null);
+    Task<bool> UpdatePaymentStatusAsync(string checkoutSessionId, string status, DateTime? expiredAt = null);
 }
