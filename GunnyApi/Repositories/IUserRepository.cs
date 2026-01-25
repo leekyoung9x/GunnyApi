@@ -17,4 +17,5 @@ public interface IUserRepository : IBaseRepository<User>
     Task<PlayerInfo?> GetPlayerByNickNameAsync(string nickName);
     Task<PlayerInfo?> GetPlayerByUserNameAsync(string userName);
     Task<bool> SendMailAsync(MailInfo mail);
+    Task<bool> ChangePasswordAsync(int userId, string oldPassword, string newPassword);
 }

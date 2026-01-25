@@ -70,7 +70,17 @@ public class LocalizationService : ILocalizationService
             ["Payment.WebhookProcessSuccess"] = "Xử lý webhook thành công",
             ["Payment.WebhookProcessError"] = "Có lỗi xảy ra khi xử lý webhook: {0}",
             ["Payment.InvalidRequest"] = "Dữ liệu webhook không hợp lệ",
-            ["Payment.InvalidSignature"] = "Chữ ký webhook không hợp lệ"
+            ["Payment.InvalidSignature"] = "Chữ ký webhook không hợp lệ",
+            
+            // Password change messages
+            ["Password.OldPasswordRequired"] = "Mật khẩu cũ không được rỗng",
+            ["Password.NewPasswordRequired"] = "Mật khẩu mới không được rỗng",
+            ["Password.ConfirmPasswordRequired"] = "Xác nhận mật khẩu không được rỗng",
+            ["Password.PasswordsDoNotMatch"] = "Mật khẩu mới và xác nhận mật khẩu không khớp",
+            ["Password.NewPasswordSameAsOld"] = "Mật khẩu mới không được trùng với mật khẩu cũ",
+            ["Password.ChangeSuccess"] = "Đổi mật khẩu thành công",
+            ["Password.OldPasswordIncorrect"] = "Mật khẩu cũ không đúng",
+            ["Password.ChangeFailed"] = "Có lỗi xảy ra khi đổi mật khẩu: {0}"
         };
 
         // English translations
@@ -123,7 +133,17 @@ public class LocalizationService : ILocalizationService
             ["Payment.WebhookProcessSuccess"] = "Webhook processed successfully",
             ["Payment.WebhookProcessError"] = "An error occurred while processing webhook: {0}",
             ["Payment.InvalidRequest"] = "Invalid webhook data",
-            ["Payment.InvalidSignature"] = "Invalid webhook signature"
+            ["Payment.InvalidSignature"] = "Invalid webhook signature",
+            
+            // Password change messages
+            ["Password.OldPasswordRequired"] = "Old password is required",
+            ["Password.NewPasswordRequired"] = "New password is required",
+            ["Password.ConfirmPasswordRequired"] = "Confirm password is required",
+            ["Password.PasswordsDoNotMatch"] = "New password and confirm password do not match",
+            ["Password.NewPasswordSameAsOld"] = "New password must be different from old password",
+            ["Password.ChangeSuccess"] = "Password changed successfully",
+            ["Password.OldPasswordIncorrect"] = "Old password is incorrect",
+            ["Password.ChangeFailed"] = "An error occurred while changing password: {0}"
         };
     }
 

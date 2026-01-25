@@ -554,4 +554,95 @@ public class UserRepository : BaseRepository<User>, IUserRepository
             throw new Exception($"Error sending mail: {ex.Message}", ex);
         }
     }
+
+    /// <summary>
+    /// Change user password in Mem_Account
+    /// </summary>
+    public async Task<bool> ChangePasswordAsync(int userId, string oldPassword, string newPassword)
+    {
+        try
+        {
+            // Validate inputs
+            SqlInjectionProtection.ValidateInputs(
+                (oldPassword, nameof(oldPassword)),
+                (newPassword, nameof(newPassword))
+            );
+
+            // Kiểm tra phương thức mã hóa mật khẩu từ config
+            var encryptionMethod = _gameSettings.PasswordEncryptionMethod?.ToUpper() ?? "MD5";
+
+            using var connection = _connectionFactory.CreateConnection();
+            
+            // Get current password from database
+            string getCurrentPasswordSql;
+            if (encryptionMethod == "MD5")
+            {
+                getCurrentPasswordSql = "SELECT Password FROM Mem_Users WHERE UserId = @UserId";
+            }
+            else // BCrypt
+            {
+                getCurrentPasswordSql = "SELECT Password FROM Mem_Account WHERE UserID = @UserId";
+            }
+
+            var currentHashedPassword = await connection.ExecuteScalarAsync<string>(
+                getCurrentPasswordSql,
+                new { UserId = userId }
+            );
+
+            if (string.IsNullOrEmpty(currentHashedPassword))
+            {
+                return false; // User not found
+            }
+
+            // Verify old password
+            bool isOldPasswordValid;
+            if (encryptionMethod == "MD5")
+            {
+                var oldPasswordHash = MD5Helper.ToMD5(oldPassword);
+                isOldPasswordValid = oldPasswordHash == currentHashedPassword;
+            }
+            else // BCrypt
+            {
+                isOldPasswordValid = BCryptHelper.VerifyPassword(oldPassword, currentHashedPassword);
+            }
+
+            if (!isOldPasswordValid)
+            {
+                return false; // Old password is incorrect
+            }
+
+            // Hash new password
+            string newPasswordHash;
+            if (encryptionMethod == "MD5")
+            {
+                newPasswordHash = MD5Helper.ToMD5(newPassword);
+            }
+            else // BCrypt
+            {
+                newPasswordHash = BCryptHelper.HashPassword(newPassword);
+            }
+
+            // Update password in database
+            string updatePasswordSql;
+            if (encryptionMethod == "MD5")
+            {
+                updatePasswordSql = "UPDATE Mem_Users SET Password = @Password WHERE UserId = @UserId";
+            }
+            else // BCrypt
+            {
+                updatePasswordSql = "UPDATE Mem_Account SET Password = @Password WHERE UserID = @UserId";
+            }
+
+            var rowsAffected = await connection.ExecuteAsync(
+                updatePasswordSql,
+                new { UserId = userId, Password = newPasswordHash }
+            );
+
+            return rowsAffected > 0;
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Error changing password: {ex.Message}", ex);
+        }
+    }
 }

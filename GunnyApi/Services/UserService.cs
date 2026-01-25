@@ -457,4 +457,100 @@ public class UserService : BaseService<User>, IUserService
             };
         }
     }
+
+    public async Task<ChangePasswordResponse> ChangePasswordAsync(int userId, ChangePasswordRequest request)
+    {
+        // Validate input
+        if (string.IsNullOrWhiteSpace(request.OldPassword))
+        {
+            return new ChangePasswordResponse
+            {
+                Success = false,
+                Message = _localization.GetString("Password.OldPasswordRequired")
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(request.NewPassword))
+        {
+            return new ChangePasswordResponse
+            {
+                Success = false,
+                Message = _localization.GetString("Password.NewPasswordRequired")
+            };
+        }
+
+        if (string.IsNullOrWhiteSpace(request.ConfirmPassword))
+        {
+            return new ChangePasswordResponse
+            {
+                Success = false,
+                Message = _localization.GetString("Password.ConfirmPasswordRequired")
+            };
+        }
+
+        // Check if new password and confirm password match
+        if (request.NewPassword != request.ConfirmPassword)
+        {
+            return new ChangePasswordResponse
+            {
+                Success = false,
+                Message = _localization.GetString("Password.PasswordsDoNotMatch")
+            };
+        }
+
+        // Check if new password is same as old password
+        if (request.OldPassword == request.NewPassword)
+        {
+            return new ChangePasswordResponse
+            {
+                Success = false,
+                Message = _localization.GetString("Password.NewPasswordSameAsOld")
+            };
+        }
+
+        try
+        {
+            // Validate SQL injection
+            SqlInjectionProtection.ValidateInputs(
+                (request.OldPassword, nameof(request.OldPassword)),
+                (request.NewPassword, nameof(request.NewPassword)),
+                (request.ConfirmPassword, nameof(request.ConfirmPassword))
+            );
+
+            var result = await _userRepository.ChangePasswordAsync(userId, request.OldPassword, request.NewPassword);
+
+            if (result)
+            {
+                return new ChangePasswordResponse
+                {
+                    Success = true,
+                    Message = _localization.GetString("Password.ChangeSuccess")
+                };
+            }
+            else
+            {
+                return new ChangePasswordResponse
+                {
+                    Success = false,
+                    Message = _localization.GetString("Password.OldPasswordIncorrect")
+                };
+            }
+        }
+        catch (SecurityException ex)
+        {
+            return new ChangePasswordResponse
+            {
+                Success = false,
+                Message = ex.Message
+            };
+        }
+        catch (Exception ex)
+        {
+            return new ChangePasswordResponse
+            {
+                Success = false,
+                Message = _localization.GetString("Password.ChangeFailed", ex.Message)
+            };
+        }
+    }
 }

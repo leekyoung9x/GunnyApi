@@ -212,6 +212,37 @@ public class UsersController : BaseApiController
     }
 
     /// <summary>
+    /// Change Password API - Đổi mật khẩu cho user đã đăng nhập
+    /// </summary>
+    [HttpPost("change-password")]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
+    {
+        try
+        {
+            // Lấy UserId từ UserContext (đã được middleware inject)
+            if (!_userContext.UserId.HasValue)
+            {
+                return Unauthorized(new { message = _localization.GetString("Login.Unauthorized") });
+            }
+
+            var result = await _userService.ChangePasswordAsync(_userContext.UserId.Value, request);
+
+            if (result.Success)
+            {
+                return Ok(result);
+            }
+            else
+            {
+                return BadRequest(result);
+            }
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = _localization.GetString("Error.Generic"), error = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Login Game API - Đăng nhập và chuyển hướng đến game
     /// </summary>
     [HttpGet("login-game")]
