@@ -771,4 +771,168 @@ public class UserRepository : BaseRepository<User>, IUserRepository
             throw new Exception($"Error checking nickname exists: {ex.Message}", ex);
         }
     }
+
+    /// <summary>
+    /// Lấy user theo email
+    /// </summary>
+    public async Task<User?> GetByEmailAsync(string email)
+    {
+        try
+        {
+            SqlInjectionProtection.ValidateInput(email, nameof(email));
+
+            using var connection = _connectionFactory.CreateConnection();
+            var sql = $"SELECT * FROM {TableName} WHERE Email = @Email";
+            var result = await connection.QueryFirstOrDefaultAsync<MemAccount>(sql, new { Email = email });
+            
+            if (result == null) return null;
+
+            return new User
+            {
+                UserId = result.UserID,
+                Username = result.Email,
+                Email = result.Email,
+                FullName = result.Fullname ?? string.Empty,
+                Money = result.Money,
+                IsActive = !result.IsBan,
+                CreatedAt = result.TimeCreate.HasValue 
+                    ? DateTimeOffset.FromUnixTimeSeconds(result.TimeCreate.Value).DateTime 
+                    : DateTime.Now
+            };
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Error getting user by email: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Tạo password reset token
+    /// </summary>
+    public async Task<int> CreatePasswordResetTokenAsync(int userId, string email, string token, DateTime expiresAt)
+    {
+        try
+        {
+            SqlInjectionProtection.ValidateInputs(
+                (email, nameof(email)),
+                (token, nameof(token))
+            );
+
+            using var connection = _connectionFactory.CreateConnection();
+            var result = await connection.QuerySingleAsync<int>(
+                "sp_CreatePasswordResetToken",
+                new { UserId = userId, Email = email, Token = token, ExpiresAt = expiresAt },
+                commandType: CommandType.StoredProcedure
+            );
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Error creating password reset token: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Verify password reset token
+    /// </summary>
+    public async Task<PasswordReset?> VerifyPasswordResetTokenAsync(string token)
+    {
+        try
+        {
+            SqlInjectionProtection.ValidateInput(token, nameof(token));
+
+            using var connection = _connectionFactory.CreateConnection();
+            var result = await connection.QueryFirstOrDefaultAsync<PasswordReset>(
+                "sp_VerifyPasswordResetToken",
+                new { Token = token },
+                commandType: CommandType.StoredProcedure
+            );
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Error verifying password reset token: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Đánh dấu token đã được sử dụng
+    /// </summary>
+    public async Task<bool> MarkTokenAsUsedAsync(string token)
+    {
+        try
+        {
+            SqlInjectionProtection.ValidateInput(token, nameof(token));
+
+            using var connection = _connectionFactory.CreateConnection();
+            var result = await connection.ExecuteScalarAsync<int>(
+                "sp_MarkPasswordResetTokenAsUsed",
+                new { Token = token },
+                commandType: CommandType.StoredProcedure
+            );
+
+            return result > 0;
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Error marking token as used: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Reset password với token
+    /// </summary>
+    public async Task<bool> ResetPasswordWithTokenAsync(string token, string newPassword)
+    {
+        try
+        {
+            SqlInjectionProtection.ValidateInput(token, nameof(token));
+
+            // Verify token trước
+            var passwordReset = await VerifyPasswordResetTokenAsync(token);
+            if (passwordReset == null)
+            {
+                return false;
+            }
+
+            // Cập nhật password
+            using var connection = _connectionFactory.CreateConnection();
+            
+            // Hash password theo cấu hình
+            string hashedPassword;
+            var encryptionMethod = _gameSettings.PasswordEncryptionMethod?.ToUpper() ?? "MD5";
+            
+            if (encryptionMethod == "BCRYPT")
+            {
+                hashedPassword = BCrypt.Net.BCrypt.HashPassword(newPassword);
+            }
+            else
+            {
+                hashedPassword = MD5Helper.ToMD5(newPassword);
+            }
+
+            var sql = $"UPDATE {TableName} SET Password = @Password WHERE UserID = @UserId";
+            var rowsAffected = await connection.ExecuteAsync(sql, new 
+            { 
+                Password = hashedPassword, 
+                UserId = passwordReset.UserId 
+            });
+
+            if (rowsAffected > 0)
+            {
+                // Đánh dấu token đã sử dụng
+                await MarkTokenAsUsedAsync(token);
+                return true;
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Error resetting password: {ex.Message}", ex);
+        }
+    }
 }
+

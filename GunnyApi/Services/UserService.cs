@@ -71,6 +71,19 @@ public class UserService : BaseService<User>, IUserService
         return await _userRepository.GetByUsernameAsync(username);
     }
 
+    public async Task<User?> GetByEmailAsync(string email)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            throw new ArgumentException(_localization.GetString("User.EmailRequired"), nameof(email));
+        }
+
+        // Validate SQL injection
+        SqlInjectionProtection.ValidateInput(email, nameof(email));
+
+        return await _userRepository.GetByEmailAsync(email);
+    }
+
     public async Task<IEnumerable<User>> GetActiveUsersAsync()
     {
         return await _userRepository.GetActiveUsersAsync();
@@ -776,5 +789,223 @@ public class UserService : BaseService<User>, IUserService
         // Allow letters (any language), numbers, spaces, underscore, and dash
         // No special characters like @, #, $, %, etc.
         return System.Text.RegularExpressions.Regex.IsMatch(nickname, @"^[\w\s\-]+$");
+    }
+
+    /// <summary>
+    /// Xử lý quên mật khẩu - gửi email với link reset
+    /// </summary>
+    public async Task<ForgotPasswordResponse> ForgotPasswordAsync(ForgotPasswordRequest request)
+    {
+        try
+        {
+            // Validate email
+            if (string.IsNullOrWhiteSpace(request.Email))
+            {
+                return new ForgotPasswordResponse
+                {
+                    Success = false,
+                    Message = _localization.GetString("User.EmailRequired")
+                };
+            }
+
+            if (!IsValidEmail(request.Email))
+            {
+                return new ForgotPasswordResponse
+                {
+                    Success = false,
+                    Message = _localization.GetString("User.EmailInvalid")
+                };
+            }
+
+            // Validate SQL injection
+            SqlInjectionProtection.ValidateInput(request.Email, nameof(request.Email));
+
+            // Kiểm tra email có tồn tại không
+            var user = await _userRepository.GetByEmailAsync(request.Email);
+            
+            // Luôn trả về success để không lộ thông tin email có tồn tại hay không
+            // (security best practice)
+            if (user == null)
+            {
+                return new ForgotPasswordResponse
+                {
+                    Success = true,
+                    Message = "Nếu email tồn tại, chúng tôi đã gửi link đặt lại mật khẩu đến email của bạn."
+                };
+            }
+
+            // Generate secure token
+            var token = GenerateSecureToken();
+            var expiresAt = DateTime.Now.AddHours(1); // Token hết hạn sau 1 giờ
+
+            // Lưu token vào database
+            await _userRepository.CreatePasswordResetTokenAsync(user.UserId, user.Email, token, expiresAt);
+
+            return new ForgotPasswordResponse
+            {
+                Success = true,
+                Message = "Nếu email tồn tại, chúng tôi đã gửi link đặt lại mật khẩu đến email của bạn.",
+                Token = token // Trả về token để controller gửi email
+            };
+        }
+        catch (Exception ex)
+        {
+            return new ForgotPasswordResponse
+            {
+                Success = false,
+                Message = $"Lỗi khi xử lý yêu cầu: {ex.Message}"
+            };
+        }
+    }
+
+    /// <summary>
+    /// Verify reset token
+    /// </summary>
+    public async Task<VerifyResetTokenResponse> VerifyResetTokenAsync(string token)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                return new VerifyResetTokenResponse
+                {
+                    IsValid = false,
+                    Message = "Token không hợp lệ"
+                };
+            }
+
+            SqlInjectionProtection.ValidateInput(token, nameof(token));
+
+            var passwordReset = await _userRepository.VerifyPasswordResetTokenAsync(token);
+            
+            if (passwordReset == null)
+            {
+                return new VerifyResetTokenResponse
+                {
+                    IsValid = false,
+                    Message = "Token không hợp lệ hoặc đã hết hạn"
+                };
+            }
+
+            return new VerifyResetTokenResponse
+            {
+                IsValid = true,
+                Message = "Token hợp lệ",
+                Email = passwordReset.Email
+            };
+        }
+        catch (Exception ex)
+        {
+            return new VerifyResetTokenResponse
+            {
+                IsValid = false,
+                Message = $"Lỗi khi xác thực token: {ex.Message}"
+            };
+        }
+    }
+
+    /// <summary>
+    /// Reset password với token
+    /// </summary>
+    public async Task<ResetPasswordResponse> ResetPasswordAsync(ResetPasswordRequest request)
+    {
+        try
+        {
+            // Validate inputs
+            if (string.IsNullOrWhiteSpace(request.Token))
+            {
+                return new ResetPasswordResponse
+                {
+                    Success = false,
+                    Message = "Token không hợp lệ"
+                };
+            }
+
+            if (string.IsNullOrWhiteSpace(request.NewPassword))
+            {
+                return new ResetPasswordResponse
+                {
+                    Success = false,
+                    Message = _localization.GetString("Password.Required")
+                };
+            }
+
+            if (request.NewPassword != request.ConfirmPassword)
+            {
+                return new ResetPasswordResponse
+                {
+                    Success = false,
+                    Message = "Mật khẩu xác nhận không khớp"
+                };
+            }
+
+            // Validate password strength
+            if (request.NewPassword.Length < 6)
+            {
+                return new ResetPasswordResponse
+                {
+                    Success = false,
+                    Message = _localization.GetString("Password.TooShort")
+                };
+            }
+
+            SqlInjectionProtection.ValidateInputs(
+                (request.Token, nameof(request.Token)),
+                (request.NewPassword, nameof(request.NewPassword))
+            );
+
+            // Verify token trước
+            var verifyResult = await VerifyResetTokenAsync(request.Token);
+            if (!verifyResult.IsValid)
+            {
+                return new ResetPasswordResponse
+                {
+                    Success = false,
+                    Message = verifyResult.Message
+                };
+            }
+
+            // Reset password
+            var success = await _userRepository.ResetPasswordWithTokenAsync(request.Token, request.NewPassword);
+
+            if (success)
+            {
+                return new ResetPasswordResponse
+                {
+                    Success = true,
+                    Message = "Đặt lại mật khẩu thành công!"
+                };
+            }
+            else
+            {
+                return new ResetPasswordResponse
+                {
+                    Success = false,
+                    Message = "Không thể đặt lại mật khẩu. Vui lòng thử lại."
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            return new ResetPasswordResponse
+            {
+                Success = false,
+                Message = $"Lỗi khi đặt lại mật khẩu: {ex.Message}"
+            };
+        }
+    }
+
+    /// <summary>
+    /// Generate secure token cho password reset
+    /// </summary>
+    private string GenerateSecureToken()
+    {
+        // Tạo token an toàn, khó đoán
+        var bytes = new byte[32];
+        using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create())
+        {
+            rng.GetBytes(bytes);
+        }
+        return Convert.ToBase64String(bytes).Replace("+", "-").Replace("/", "_").Replace("=", "");
     }
 }

@@ -96,8 +96,26 @@ public class LocalizationService : ILocalizationService
             ["Password.ChangeSuccess"] = "Đổi mật khẩu thành công",
             ["Password.OldPasswordIncorrect"] = "Mật khẩu cũ không đúng",
             ["Password.ChangeFailed"] = "Có lỗi xảy ra khi đổi mật khẩu: {0}",
+            ["Password.Required"] = "Mật khẩu không được để trống",
+            ["Password.TooShort"] = "Mật khẩu phải có ít nhất 6 ký tự",
             ["Payment.InvalidSignature"] = "Chữ ký webhook không hợp lệ",
             ["Payment.Unauthorized"] = "Không thể xác thực người dùng",
+            
+            // Forgot Password Email Template
+            ["ForgotPassword.EmailSubject"] = "Đặt lại mật khẩu - Gunny Game",
+            ["ForgotPassword.EmailTitle"] = "🔐 Đặt lại mật khẩu",
+            ["ForgotPassword.EmailGreeting"] = "Xin chào {0}!",
+            ["ForgotPassword.EmailIntro"] = "Bạn đã yêu cầu đặt lại mật khẩu cho tài khoản Gunny Game của mình.",
+            ["ForgotPassword.EmailClickButton"] = "Nhấn vào nút bên dưới để đặt lại mật khẩu:",
+            ["ForgotPassword.EmailButtonText"] = "Đặt lại mật khẩu",
+            ["ForgotPassword.EmailOrCopyLink"] = "Hoặc copy link sau vào trình duyệt:",
+            ["ForgotPassword.EmailWarningTitle"] = "⚠️ Lưu ý:",
+            ["ForgotPassword.EmailWarning1"] = "Link này sẽ hết hạn sau <strong>1 giờ</strong>",
+            ["ForgotPassword.EmailWarning2"] = "Chỉ sử dụng được <strong>1 lần</strong>",
+            ["ForgotPassword.EmailWarning3"] = "Không chia sẻ link này với bất kỳ ai",
+            ["ForgotPassword.EmailIgnore"] = "Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này. Mật khẩu của bạn sẽ không thay đổi.",
+            ["ForgotPassword.EmailAutoMessage"] = "Email này được gửi tự động, vui lòng không trả lời.",
+            ["ForgotPassword.EmailCopyright"] = "&copy; 2026 Gunny Game. All rights reserved.",
             
             // Profile update messages
             ["Profile.UsernameRequired"] = "Username không được rỗng",
@@ -218,6 +236,24 @@ public class LocalizationService : ILocalizationService
             ["Password.ChangeSuccess"] = "Password changed successfully",
             ["Password.OldPasswordIncorrect"] = "Old password is incorrect",
             ["Password.ChangeFailed"] = "An error occurred while changing password: {0}",
+            ["Password.Required"] = "Password is required",
+            ["Password.TooShort"] = "Password must be at least 6 characters",
+            
+            // Forgot Password Email Template
+            ["ForgotPassword.EmailSubject"] = "Reset Password - Gunny Game",
+            ["ForgotPassword.EmailTitle"] = "🔐 Reset Password",
+            ["ForgotPassword.EmailGreeting"] = "Hello {0}!",
+            ["ForgotPassword.EmailIntro"] = "You have requested to reset your password for your Gunny Game account.",
+            ["ForgotPassword.EmailClickButton"] = "Click the button below to reset your password:",
+            ["ForgotPassword.EmailButtonText"] = "Reset Password",
+            ["ForgotPassword.EmailOrCopyLink"] = "Or copy this link to your browser:",
+            ["ForgotPassword.EmailWarningTitle"] = "⚠️ Please note:",
+            ["ForgotPassword.EmailWarning1"] = "This link will expire in <strong>1 hour</strong>",
+            ["ForgotPassword.EmailWarning2"] = "Can only be used <strong>once</strong>",
+            ["ForgotPassword.EmailWarning3"] = "Do not share this link with anyone",
+            ["ForgotPassword.EmailIgnore"] = "If you did not request a password reset, please ignore this email. Your password will not be changed.",
+            ["ForgotPassword.EmailAutoMessage"] = "This is an automated email, please do not reply.",
+            ["ForgotPassword.EmailCopyright"] = "&copy; 2026 Gunny Game. All rights reserved.",
             
             // Profile update messages
             ["Profile.UsernameRequired"] = "Username is required",

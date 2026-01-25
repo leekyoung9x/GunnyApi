@@ -22,4 +22,11 @@ public interface IUserRepository : IBaseRepository<User>
     Task<bool> UpdateNicknameAsync(string username, string newNickname);
     Task<bool> CheckUsernameExistsExcludingUserAsync(int userId, string username);
     Task<bool> CheckNicknameExistsExcludingUserAsync(string currentUsername, string nickname);
+    
+    // Password Reset methods
+    Task<User?> GetByEmailAsync(string email);
+    Task<int> CreatePasswordResetTokenAsync(int userId, string email, string token, DateTime expiresAt);
+    Task<PasswordReset?> VerifyPasswordResetTokenAsync(string token);
+    Task<bool> MarkTokenAsUsedAsync(string token);
+    Task<bool> ResetPasswordWithTokenAsync(string token, string newPassword);
 }

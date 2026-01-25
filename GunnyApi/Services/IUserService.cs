@@ -6,6 +6,7 @@ namespace GunnyApi.Services;
 public interface IUserService : IBaseService<User>
 {
     Task<User?> GetByUsernameAsync(string username);
+    Task<User?> GetByEmailAsync(string email);
     Task<IEnumerable<User>> GetActiveUsersAsync();
     Task<LoginResponse> LoginAsync(LoginRequest request);
     Task<RegisterResponse> RegisterAsync(RegisterRequest request);
@@ -14,4 +15,9 @@ public interface IUserService : IBaseService<User>
     Task<SendMoneyResponse> SendMoneyAsync(string userName, int gold, int money, int giftToken);
     Task<ChangePasswordResponse> ChangePasswordAsync(int userId, ChangePasswordRequest request);
     Task<UpdateProfileResponse> UpdateProfileAsync(int userId, UpdateProfileRequest request);
+    
+    // Password Reset methods
+    Task<ForgotPasswordResponse> ForgotPasswordAsync(ForgotPasswordRequest request);
+    Task<VerifyResetTokenResponse> VerifyResetTokenAsync(string token);
+    Task<ResetPasswordResponse> ResetPasswordAsync(ResetPasswordRequest request);
 }

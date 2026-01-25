@@ -244,6 +244,221 @@ public class UsersController : BaseApiController
     }
 
     /// <summary>
+    /// Forgot Password API - Gửi email reset password
+    /// </summary>
+    [HttpPost("forgot-password")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
+    {
+        try
+        {
+            var result = await _userService.ForgotPasswordAsync(request);
+
+            if (result.Success && !string.IsNullOrEmpty(result.Token))
+            {
+                // Lấy email service để gửi email
+                var emailService = HttpContext.RequestServices.GetRequiredService<Infrastructure.Services.IEmailService>();
+                var configuration = HttpContext.RequestServices.GetRequiredService<IConfiguration>();
+
+                // Tạo reset link (có thể cấu hình trong appsettings.json)
+                var frontendUrl = configuration["FrontendUrl"] ?? "http://localhost:3000";
+                var resetLink = $"{frontendUrl}/reset-password?token={result.Token}";
+
+                // Lấy thông tin user để gửi email
+                var user = await _userService.GetByEmailAsync(request.Email);
+                var username = user?.Username ?? request.Email;
+
+                // Get localized strings
+                var subject = _localization.GetString("ForgotPassword.EmailSubject");
+                var title = _localization.GetString("ForgotPassword.EmailTitle");
+                var greeting = _localization.GetString("ForgotPassword.EmailGreeting", username);
+                var intro = _localization.GetString("ForgotPassword.EmailIntro");
+                var clickButton = _localization.GetString("ForgotPassword.EmailClickButton");
+                var buttonText = _localization.GetString("ForgotPassword.EmailButtonText");
+                var orCopyLink = _localization.GetString("ForgotPassword.EmailOrCopyLink");
+                var warningTitle = _localization.GetString("ForgotPassword.EmailWarningTitle");
+                var warning1 = _localization.GetString("ForgotPassword.EmailWarning1");
+                var warning2 = _localization.GetString("ForgotPassword.EmailWarning2");
+                var warning3 = _localization.GetString("ForgotPassword.EmailWarning3");
+                var ignore = _localization.GetString("ForgotPassword.EmailIgnore");
+                var autoMessage = _localization.GetString("ForgotPassword.EmailAutoMessage");
+                var copyright = _localization.GetString("ForgotPassword.EmailCopyright");
+
+                // Template email
+                var body = $@"
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <style>
+                            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                            .header {{ 
+                                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                                color: white; 
+                                padding: 30px; 
+                                text-align: center;
+                                border-radius: 10px 10px 0 0;
+                            }}
+                            .content {{ 
+                                padding: 30px; 
+                                background-color: #f9f9f9;
+                                border: 1px solid #e0e0e0;
+                            }}
+                            .button {{ 
+                                display: inline-block; 
+                                padding: 15px 40px;
+                                background-color: #667eea; 
+                                color: white;
+                                text-decoration: none; 
+                                border-radius: 5px;
+                                font-weight: bold;
+                                margin: 20px 0;
+                            }}
+                            .button:hover {{
+                                background-color: #5568d3;
+                            }}
+                            .footer {{ 
+                                text-align: center; 
+                                padding: 20px; 
+                                color: #777; 
+                                font-size: 12px;
+                                background-color: #f0f0f0;
+                                border-radius: 0 0 10px 10px;
+                            }}
+                            .warning {{
+                                background-color: #fff3cd;
+                                border-left: 4px solid #ffc107;
+                                padding: 15px;
+                                margin: 20px 0;
+                            }}
+                            .token-box {{
+                                background-color: #fff;
+                                border: 2px dashed #667eea;
+                                padding: 15px;
+                                margin: 20px 0;
+                                text-align: center;
+                                font-family: monospace;
+                                font-size: 14px;
+                                word-break: break-all;
+                            }}
+                        </style>
+                    </head>
+                    <body>
+                        <div class='container'>
+                            <div class='header'>
+                                <h1>{title}</h1>
+                            </div>
+                            <div class='content'>
+                                <h2>{greeting}</h2>
+                                <p>{intro}</p>
+                                
+                                <p>{clickButton}</p>
+                                
+                                <div style='text-align: center;'>
+                                    <a href='{resetLink}' class='button'>{buttonText}</a>
+                                </div>
+
+                                <p>{orCopyLink}</p>
+                                <div class='token-box'>{resetLink}</div>
+
+                                <div class='warning'>
+                                    <strong>{warningTitle}</strong>
+                                    <ul style='margin: 10px 0; padding-left: 20px;'>
+                                        <li>{warning1}</li>
+                                        <li>{warning2}</li>
+                                        <li>{warning3}</li>
+                                    </ul>
+                                </div>
+
+                                <p>{ignore}</p>
+                            </div>
+                            <div class='footer'>
+                                <p>{autoMessage}</p>
+                                <p>{copyright}</p>
+                            </div>
+                        </div>
+                    </body>
+                    </html>
+                ";
+
+                // Gửi email (không chờ kết quả để response nhanh hơn)
+                _ = Task.Run(async () =>
+                {
+                    await emailService.SendEmailAsync(request.Email, subject, body, true);
+                });
+            }
+
+            // Không trả về token trong response (security)
+            return Ok(new 
+            { 
+                success = result.Success, 
+                message = result.Message 
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = _localization.GetString("Error.Generic"), error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Verify Reset Token API - Kiểm tra token có hợp lệ không
+    /// </summary>
+    [HttpGet("verify-reset-token")]
+    [AllowAnonymous]
+    public async Task<IActionResult> VerifyResetToken([FromQuery] string token)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                return BadRequest(new { success = false, message = "Token không hợp lệ" });
+            }
+
+            var result = await _userService.VerifyResetTokenAsync(token);
+
+            if (result.IsValid)
+            {
+                return Ok(result);
+            }
+            else
+            {
+                return BadRequest(result);
+            }
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = _localization.GetString("Error.Generic"), error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Reset Password API - Đặt lại mật khẩu với token
+    /// </summary>
+    [HttpPost("reset-password")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+    {
+        try
+        {
+            var result = await _userService.ResetPasswordAsync(request);
+
+            if (result.Success)
+            {
+                return Ok(result);
+            }
+            else
+            {
+                return BadRequest(result);
+            }
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = _localization.GetString("Error.Generic"), error = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Update Profile API - Cập nhật username và/hoặc nickname
     /// </summary>
     [HttpPut("profile")]
