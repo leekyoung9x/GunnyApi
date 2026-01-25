@@ -259,7 +259,7 @@ public class UsersController : BaseApiController
                 return BadRequest(new LoginGameResponse
                 {
                     Success = false,
-                    Message = "Username không được để trống"
+                    Message = _localization.GetString("Server.UsernameRequired")
                 });
             }
 
@@ -312,7 +312,7 @@ public class UsersController : BaseApiController
                 return Ok(new LoginGameResponse
                 {
                     Success = true,
-                    Message = "Đăng nhập game thành công",
+                    Message = _localization.GetString("Server.LoginSuccess"),
                     RedirectUrl = flashUrl,
                     AutoParam = _gameSettings.AutoParam
                 });
@@ -322,7 +322,7 @@ public class UsersController : BaseApiController
                 return Ok(new LoginGameResponse
                 {
                     Success = false,
-                    Message = $"Đăng nhập game thất bại: {result}"
+                    Message = _localization.GetString("Server.LoginFailed", result)
                 });
             }
         }
@@ -331,7 +331,7 @@ public class UsersController : BaseApiController
             return StatusCode(500, new LoginGameResponse
             {
                 Success = false,
-                Message = $"Có lỗi xảy ra: {ex.Message}"
+                Message = _localization.GetString("Server.LoginGameError", ex.Message)
             });
         }
     }
@@ -347,7 +347,7 @@ public class UsersController : BaseApiController
         }
         catch (Exception ex)
         {
-            return $"Lỗi kết nối: {ex.Message}";
+            return _localization.GetString("User.ConnectionError", ex.Message);
         }
     }
 
@@ -386,7 +386,7 @@ public class UsersController : BaseApiController
         {
             if (id != user.Id)
             {
-                return BadRequest(new { message = "ID không khớp" });
+                return BadRequest(new { message = _localization.GetString("User.IdMismatch") });
             }
 
             var success = await _userService.UpdateAsync(user);
@@ -394,7 +394,7 @@ public class UsersController : BaseApiController
             {
                 return NotFound(new { message = _localization.GetString("User.NotFound") });
             }
-            return Ok(new { message = "Cập nhật thành công" });
+            return Ok(new { message = _localization.GetString("User.UpdateSuccess") });
         }
         catch (Infrastructure.Security.SecurityException ex)
         {
@@ -419,13 +419,13 @@ public class UsersController : BaseApiController
             
             if (!userId.HasValue || userId.Value <= 0)
             {
-                return Unauthorized(new { message = "Không xác định được người dùng" });
+                return Unauthorized(new { message = _localization.GetString("User.Unauthorized") });
             }
 
             // Validate amount
             if (request.Amount <= 0)
             {
-                return BadRequest(new { message = "Số tiền phải lớn hơn 0" });
+                return BadRequest(new { message = _localization.GetString("User.AmountMustBePositive") });
             }
 
             // Thực hiện chuyển tiền
@@ -464,7 +464,7 @@ public class UsersController : BaseApiController
             {
                 return NotFound(new { message = _localization.GetString("User.NotFound") });
             }
-            return Ok(new { message = "Xóa thành công" });
+            return Ok(new { message = _localization.GetString("User.DeleteSuccess") });
         }
         catch (Exception ex)
         {
@@ -483,7 +483,7 @@ public class UsersController : BaseApiController
         {
             if (string.IsNullOrWhiteSpace(request.UserName))
             {
-                return BadRequest(new { success = false, message = "Tên tài khoản không được để trống" });
+                return BadRequest(new { success = false, message = _localization.GetString("User.UsernameRequiredNotEmpty") });
             }
 
             var result = await _userService.SendMoneyAsync(
@@ -528,7 +528,7 @@ public class UsersController : BaseApiController
                 return Ok(new
                 {
                     error = "INVALID_USERNAME",
-                    msg = "Vui lòng nhập tài khoản"
+                    msg = _localization.GetString("Login.InvalidUsername")
                 });
             }
 
@@ -537,7 +537,7 @@ public class UsersController : BaseApiController
                 return Ok(new
                 {
                     error = "INVALID_PASSWORD",
-                    msg = "Vui lòng nhập đầy đủ thông tin"
+                    msg = _localization.GetString("Login.InvalidPassword")
                 });
             }
 
@@ -549,7 +549,7 @@ public class UsersController : BaseApiController
                 return Ok(new
                 {
                     error = "AUTH_FAILED",
-                    msg = loginResult.Message ?? "Đăng nhập thất bại"
+                    msg = loginResult.Message ?? _localization.GetString("Login.AuthFailed")
                 });
             }
 
@@ -580,7 +580,7 @@ public class UsersController : BaseApiController
                 {
                     token = password,
                     username = username,
-                    msg = "Đăng nhập thành công"
+                    msg = _localization.GetString("Login.Success")
                 });
             }
             else
@@ -588,7 +588,7 @@ public class UsersController : BaseApiController
                 return Ok(new
                 {
                     error = "GAME_SERVER_ERROR",
-                    msg = $"Không thể kết nối game server: {result}"
+                    msg = _localization.GetString("Login.GameServerError", result)
                 });
             }
         }
@@ -597,7 +597,7 @@ public class UsersController : BaseApiController
             return Ok(new
             {
                 error = "SERVER_ERROR",
-                msg = $"Có lỗi xảy ra: {ex.Message}"
+                msg = _localization.GetString("Login.ServerError", ex.Message)
             });
         }
     }

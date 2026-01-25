@@ -13,6 +13,43 @@ using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Load appsettings.Local.json if exists (for local secrets)
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
+
+// Kestrel Configuration from appsettings.json
+var kestrelSettings = builder.Configuration.GetSection("KestrelSettings").Get<KestrelSettings>();
+builder.Services.Configure<KestrelSettings>(builder.Configuration.GetSection("KestrelSettings"));
+
+builder.WebHost.ConfigureKestrel(serverOptions =>
+{
+    if (kestrelSettings!.ListenOnAllInterfaces)
+    {
+        // Listen on all network interfaces (0.0.0.0)
+        serverOptions.ListenAnyIP(kestrelSettings.HttpPort); // HTTP
+        
+        if (kestrelSettings.EnableHttps)
+        {
+            serverOptions.ListenAnyIP(kestrelSettings.HttpsPort, listenOptions =>
+            {
+                listenOptions.UseHttps(); // HTTPS
+            });
+        }
+    }
+    else
+    {
+        // Listen only on localhost (127.0.0.1)
+        serverOptions.ListenLocalhost(kestrelSettings.HttpPort); // HTTP
+        
+        if (kestrelSettings.EnableHttps)
+        {
+            serverOptions.ListenLocalhost(kestrelSettings.HttpsPort, listenOptions =>
+            {
+                listenOptions.UseHttps(); // HTTPS
+            });
+        }
+    }
+});
+
 // Add services to the container.
 
 // Database Connection Factory
@@ -28,9 +65,12 @@ builder.Services.Configure<GameSettings>(builder.Configuration.GetSection("GameS
 // CORS Settings Configuration
 builder.Services.Configure<CorsSettings>(builder.Configuration.GetSection("CorsSettings"));
 
+// PaymentTiers Settings Configuration
+builder.Services.Configure<PaymentTiersSettings>(builder.Configuration.GetSection("PaymentTiersSettings"));
+
 // Localization Settings Configuration
 builder.Services.Configure<LocalizationSettings>(builder.Configuration.GetSection("LocalizationSettings"));
-builder.Services.AddSingleton<GunnyApi.Infrastructure.Services.ILocalizationService, GunnyApi.Infrastructure.Services.LocalizationService>();
+builder.Services.AddScoped<GunnyApi.Infrastructure.Services.ILocalizationService, GunnyApi.Infrastructure.Services.LocalizationService>();
 
 // HttpClient Factory và Service
 builder.Services.AddHttpClient();

@@ -7,6 +7,9 @@ using GunnyApi.Infrastructure.Context;
 using System.Text;
 using Dapper;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Options;
+using GunnyApi.Infrastructure.Settings;
+using GunnyApi.Infrastructure.Services;
 
 namespace GunnyApi.Controllers;
 
@@ -18,17 +21,150 @@ public class PaymentController : BaseApiController
     private readonly IConfiguration _configuration;
     private readonly IUserContext _userContext;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly PaymentTiersSettings _paymentTiersSettings;
+    private readonly ILocalizationService _localization;
 
     public PaymentController(
         ILogger<PaymentController> logger,
         IConfiguration configuration,
         IUserContext userContext,
-        IHttpClientFactory httpClientFactory)
+        IHttpClientFactory httpClientFactory,
+        IOptions<PaymentTiersSettings> paymentTiersSettings,
+        ILocalizationService localization)
     {
         _logger = logger;
         _configuration = configuration;
         _userContext = userContext;
         _httpClientFactory = httpClientFactory;
+        _paymentTiersSettings = paymentTiersSettings.Value;
+        _localization = localization;
+    }
+
+    /// <summary>
+    /// Lấy danh sách các mốc nạp tiền và phần thưởng
+    /// </summary>
+    [HttpGet("tiers")]
+    [AllowAnonymous]
+    public IActionResult GetPaymentTiers()
+    {
+        try
+        {
+            if (!_paymentTiersSettings.Enabled)
+            {
+                return Ok(new
+                {
+                    success = false,
+                    message = "Payment tiers feature is disabled",
+                    data = new List<PaymentTier>()
+                });
+            }
+
+            // Lọc và sắp xếp các tiers đang active
+            var activeTiers = _paymentTiersSettings.Tiers
+                .Where(t => t.IsActive)
+                .OrderBy(t => t.SortOrder)
+                .ThenBy(t => t.Amount)
+                .Select(t => new
+                {
+                    t.Id,
+                    amount = t.Amount, // Số tiền tính bằng PHP (client gửi giá trị này vào API CreateCheckoutSession)
+                    rewards = new
+                    {
+                        money = t.Money, // Xu
+                        gold = _paymentTiersSettings.EnableGoldReward ? t.Gold : 0, // Vàng (nếu enabled trong config)
+                        giftToken = _paymentTiersSettings.EnableGiftTokenReward ? t.GiftToken : 0 // Lễ Kim (nếu enabled trong config)
+                    },
+                    t.BonusPercent,
+                    DisplayName = !string.IsNullOrEmpty(t.DisplayNameKey) 
+                        ? _localization.GetString(t.DisplayNameKey) 
+                        : t.DisplayName,
+                    Description = !string.IsNullOrEmpty(t.DescriptionKey) 
+                        ? _localization.GetString(t.DescriptionKey) 
+                        : t.Description,
+                    t.IsActive,
+                    t.SortOrder
+                })
+                .ToList();
+
+            return Ok(new
+            {
+                success = true,
+                message = "Payment tiers retrieved successfully",
+                currency = _paymentTiersSettings.Currency,
+                minimumAmount = _paymentTiersSettings.MinimumAmount,
+                maximumAmount = _paymentTiersSettings.MaximumAmount,
+                data = activeTiers
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving payment tiers");
+            return StatusCode(500, new
+            {
+                success = false,
+                message = _localization.GetString("Error.Generic"),
+                error = ex.Message
+            });
+        }
+    }
+
+    /// <summary>
+    /// Lấy thông tin chi tiết một mốc nạp tiền theo ID
+    /// </summary>
+    [HttpGet("tiers/{id}")]
+    [AllowAnonymous]
+    public IActionResult GetPaymentTierById(int id)
+    {
+        try
+        {
+            var tier = _paymentTiersSettings.Tiers
+                .FirstOrDefault(t => t.Id == id && t.IsActive);
+
+            if (tier == null)
+            {
+                return NotFound(new
+                {
+                    success = false,
+                    message = "Payment tier not found"
+                });
+            }
+
+            // Translate tier data
+            var localizedTier = new
+            {
+                tier.Id,
+                tier.Amount,
+                tier.Gold,
+                tier.Money,
+                tier.GiftToken,
+                tier.BonusPercent,
+                DisplayName = !string.IsNullOrEmpty(tier.DisplayNameKey) 
+                    ? _localization.GetString(tier.DisplayNameKey) 
+                    : tier.DisplayName,
+                Description = !string.IsNullOrEmpty(tier.DescriptionKey) 
+                    ? _localization.GetString(tier.DescriptionKey) 
+                    : tier.Description,
+                tier.IsActive,
+                tier.SortOrder
+            };
+
+            return Ok(new
+            {
+                success = true,
+                message = "Payment tier retrieved successfully",
+                data = localizedTier
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving payment tier {TierId}", id);
+            return StatusCode(500, new
+            {
+                success = false,
+                message = _localization.GetString("Error.Generic"),
+                error = ex.Message
+            });
+        }
     }
 
     /// <summary>
@@ -44,11 +180,39 @@ public class PaymentController : BaseApiController
             var username = _userContext.Username;
             if (string.IsNullOrEmpty(username))
             {
-                return Unauthorized(new { message = "Không thể xác thực người dùng" });
+                return Unauthorized(new { message = _localization.GetString("Payment.Unauthorized") });
             }
 
-            _logger.LogInformation("User {Username} đang tạo checkout session với amount: {Amount}", 
-                username, request.Amount);
+            // Validate amount phải khớp với một tier
+            // Client gửi amount bằng PHP (VD: 50 PHP)
+            // Server sẽ convert sang centavos khi tạo giao dịch PayMongo (50 PHP * 100 = 5000 centavos)
+            var matchingTier = _paymentTiersSettings.Tiers
+                .FirstOrDefault(t => t.IsActive && t.Amount == request.Amount);
+
+            if (matchingTier == null)
+            {
+                _logger.LogWarning(
+                    "Client gửi amount {Amount} PHP không khớp với tier nào. Available tiers: {Tiers}",
+                    request.Amount,
+                    string.Join(", ", _paymentTiersSettings.Tiers.Where(t => t.IsActive).Select(t => $"{t.Amount} PHP"))
+                );
+                return BadRequest(new 
+                { 
+                    message = "Invalid payment amount. Amount must match one of the available tiers.",
+                    requestedAmount = request.Amount,
+                    availableTiers = _paymentTiersSettings.Tiers
+                        .Where(t => t.IsActive)
+                        .Select(t => new { amount = t.Amount, currency = "PHP" })
+                        .ToList()
+                });
+            }
+
+            // Convert PHP sang centavos cho PayMongo
+            var amountInCentavos = (int)(request.Amount * 100);
+
+            _logger.LogInformation(
+                "User {Username} đang tạo checkout session - Amount: {Amount} PHP ({Centavos} centavos) - Tier: {TierId}", 
+                username, request.Amount, amountInCentavos, matchingTier.Id);
 
             // Lấy cấu hình từ appsettings
             var apiUrl = _configuration["PayMongoSettings:ApiUrl"];
@@ -63,7 +227,7 @@ public class PaymentController : BaseApiController
             if (string.IsNullOrEmpty(apiUrl) || string.IsNullOrEmpty(secretKey))
             {
                 _logger.LogError("PayMongo settings chưa được cấu hình");
-                return StatusCode(500, new { message = "Cấu hình thanh toán chưa được thiết lập" });
+                return StatusCode(500, new { message = _localization.GetString("Payment.ConfigNotSetup") });
             }
 
             // Tạo request body cho PayMongo
@@ -79,16 +243,16 @@ public class PaymentController : BaseApiController
                         PaymentMethodTypes = paymentMethods,
                         Description = !string.IsNullOrEmpty(request.Description) 
                             ? request.Description 
-                            : $"Thanh toán cho user: {username}",
+                            : _localization.GetString("Payment.PaymentFor", username),
                         LineItems = new List<PayMongoLineItem>
                         {
                             new PayMongoLineItem
                             {
                                 Currency = currency,
-                                Amount = request.Amount, // Amount từ client (đơn vị: centavos)
+                                Amount = amountInCentavos, // Amount đã convert sang centavos (VD: 50 PHP * 100 = 5000 centavos)
                                 Description = !string.IsNullOrEmpty(request.Description) 
                                     ? request.Description 
-                                    : $"Nạp tiền vào tài khoản {username}",
+                                    : _localization.GetString("Payment.TopupFor", username),
                                 Name = !string.IsNullOrEmpty(request.ProductName) 
                                     ? request.ProductName 
                                     : "Nạp tiền",
@@ -137,7 +301,7 @@ public class PaymentController : BaseApiController
                     response.StatusCode, responseContent);
                 return StatusCode((int)response.StatusCode, new 
                 { 
-                    message = "Không thể tạo phiên thanh toán", 
+                    message = _localization.GetString("Payment.CannotCreateSession"), 
                     error = responseContent 
                 });
             }
@@ -154,7 +318,7 @@ public class PaymentController : BaseApiController
             if (payMongoResponse?.Data == null)
             {
                 _logger.LogError("PayMongo response không hợp lệ");
-                return StatusCode(500, new { message = "Phản hồi từ cổng thanh toán không hợp lệ" });
+                return StatusCode(500, new { message = _localization.GetString("Payment.InvalidResponse") });
             }
 
             // Log thành công
@@ -169,7 +333,7 @@ public class PaymentController : BaseApiController
                 CheckoutUrl = payMongoResponse.Data.Attributes.CheckoutUrl,
                 ClientKey = payMongoResponse.Data.Attributes.ClientKey,
                 Description = payMongoResponse.Data.Attributes.Description,
-                Amount = request.Amount,
+                Amount = amountInCentavos, // Trả về centavos để client biết số tiền thực tế trên PayMongo
                 Status = payMongoResponse.Data.Attributes.Status
             };
 
@@ -178,7 +342,7 @@ public class PaymentController : BaseApiController
         catch (Exception ex)
         {
             _logger.LogError(ex, "Lỗi khi tạo checkout session");
-            return StatusCode(500, new { message = "Có lỗi xảy ra khi tạo phiên thanh toán", error = ex.Message });
+            return StatusCode(500, new { message = _localization.GetString("Payment.CreateCheckoutError", ex.Message) });
         }
     }
 
@@ -308,7 +472,7 @@ public class PaymentController : BaseApiController
         // Cộng tiền vào Mem_Account
         try
         {
-            // Lấy amount từ payment (đơn vị: centavos)
+            // Lấy amount từ payment (đơn vị: centavos cho PHP, tùy theo currency)
             var amountInCentavos = paymentAttrs.Amount;
 
             // Lấy username từ metadata
@@ -323,6 +487,28 @@ public class PaymentController : BaseApiController
                 _logger.LogWarning("Không tìm thấy username trong metadata để cộng tiền");
                 return;
             }
+
+            // Tìm payment tier tương ứng với số tiền đã thanh toán
+            var matchedTier = _paymentTiersSettings.Tiers
+                .FirstOrDefault(t => t.IsActive && t.Amount * 100 == amountInCentavos);
+
+            if (matchedTier == null)
+            {
+                _logger.LogWarning(
+                    "Không tìm thấy payment tier phù hợp với amount: {Amount} centavos (expected: amount * 100). Payment bị từ chối.",
+                    amountInCentavos
+                );
+                return;
+            }
+
+            _logger.LogInformation(
+                "Matched payment tier: ID={TierId}, Amount={Amount}, Money={Money}, Gold={Gold}, GiftToken={GiftToken}",
+                matchedTier.Id,
+                matchedTier.Amount,
+                matchedTier.Money,
+                matchedTier.Gold,
+                matchedTier.GiftToken
+            );
 
             var memberConnectionString = _configuration.GetConnectionString("DefaultConnection");
             using var memberConnection = new SqlConnection(memberConnectionString);
@@ -341,11 +527,11 @@ public class PaymentController : BaseApiController
                 return;
             }
 
-            // Cộng tiền vào Mem_Account (amount đã tính bằng centavos)
-            var updateMoneySql = "UPDATE Mem_Account SET Money = Money + @Amount WHERE UserID = @UserId";
+            // Cộng Money từ config tier vào Mem_Account
+            var updateMoneySql = "UPDATE Mem_Account SET Money = Money + @Money WHERE UserID = @UserId";
             var rowsAffected = await memberConnection.ExecuteAsync(
                 updateMoneySql,
-                new { UserId = userId.Value, Amount = amountInCentavos }
+                new { UserId = userId.Value, Money = matchedTier.Money }
             );
 
             if (rowsAffected > 0)
@@ -357,12 +543,76 @@ public class PaymentController : BaseApiController
                 );
 
                 _logger.LogInformation(
-                    "Đã cộng {Amount} vào tài khoản UserID: {UserId}, Username: {Username}. Số dư mới: {NewBalance}",
-                    amountInCentavos,
+                    "Đã cộng {Money} Xu (từ tier {TierId}) vào tài khoản UserID: {UserId}, Username: {Username}. Số dư mới: {NewBalance}. Payment amount: {PaymentAmount} centavos",
+                    matchedTier.Money,
+                    matchedTier.Id,
                     userId.Value,
                     username,
-                    newBalance
+                    newBalance,
+                    amountInCentavos
                 );
+
+                // Cộng Gold và GiftToken vào Tank database nếu được bật trong config
+                bool shouldAddGold = _paymentTiersSettings.EnableGoldReward && matchedTier.Gold > 0;
+                bool shouldAddGiftToken = _paymentTiersSettings.EnableGiftTokenReward && matchedTier.GiftToken > 0;
+
+                if (shouldAddGold || shouldAddGiftToken)
+                {
+                    try
+                    {
+                        var tankConnectionString = _configuration.GetConnectionString("TankConnection");
+                        using var tankConnection = new SqlConnection(tankConnectionString);
+                        await tankConnection.OpenAsync();
+
+                        // Xây dựng câu SQL động dựa trên config
+                        var updateFields = new List<string>();
+                        var parameters = new DynamicParameters();
+                        parameters.Add("Username", username);
+
+                        if (shouldAddGold)
+                        {
+                            updateFields.Add("Gold = Gold + @Gold");
+                            parameters.Add("Gold", matchedTier.Gold);
+                        }
+
+                        if (shouldAddGiftToken)
+                        {
+                            updateFields.Add("GiftToken = GiftToken + @GiftToken");
+                            parameters.Add("GiftToken", matchedTier.GiftToken);
+                        }
+
+                        var updateTankSql = $@"
+                            UPDATE dbo.Users 
+                            SET {string.Join(", ", updateFields)}
+                            WHERE UserName = @Username";
+
+                        var tankRowsAffected = await tankConnection.ExecuteAsync(updateTankSql, parameters);
+
+                        if (tankRowsAffected > 0)
+                        {
+                            var rewardParts = new List<string>();
+                            if (shouldAddGold) rewardParts.Add($"{matchedTier.Gold} Gold");
+                            if (shouldAddGiftToken) rewardParts.Add($"{matchedTier.GiftToken} Lễ Kim");
+
+                            _logger.LogInformation(
+                                "Đã cộng {Rewards} vào Tank database cho user: {Username}",
+                                string.Join(" và ", rewardParts),
+                                username
+                            );
+                        }
+                        else
+                        {
+                            _logger.LogWarning(
+                                "Không tìm thấy user trong Tank database hoặc không thể cộng Gold/GiftToken: {Username}",
+                                username
+                            );
+                        }
+                    }
+                    catch (Exception tankEx)
+                    {
+                        _logger.LogError(tankEx, "Lỗi khi cộng Gold/GiftToken vào Tank database cho user: {Username}", username);
+                    }
+                }
             }
             else
             {
