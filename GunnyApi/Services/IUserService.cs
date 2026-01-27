@@ -20,4 +20,11 @@ public interface IUserService : IBaseService<User>
     Task<ForgotPasswordResponse> ForgotPasswordAsync(ForgotPasswordRequest request);
     Task<VerifyResetTokenResponse> VerifyResetTokenAsync(string token);
     Task<ResetPasswordResponse> ResetPasswordAsync(ResetPasswordRequest request);
+    
+    // Email Change methods
+    Task<(bool Success, string Message, string OtpCode)> CreateEmailChangeOtpAsync(int userId, string currentEmail, string newEmail, int step);
+    Task<(bool Success, string Message, string NewEmail)> VerifyEmailChangeOtpAsync(int userId, string otpCode, int step);
+    Task<bool> UpdateUserEmailAsync(int userId, string newEmail);
+    Task<EmailChangeOtp?> GetLatestEmailChangeOtpAsync(int userId, int step);
+    Task<bool> VerifyPasswordAsync(int userId, string password);
 }

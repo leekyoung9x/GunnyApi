@@ -995,6 +995,112 @@ public class UserService : BaseService<User>, IUserService
         }
     }
 
+    #region Email Change Methods
+
+    /// <summary>
+    /// Tạo OTP để thay đổi email
+    /// </summary>
+    public async Task<(bool Success, string Message, string OtpCode)> CreateEmailChangeOtpAsync(int userId, string currentEmail, string newEmail, int step)
+    {
+        try
+        {
+            // Generate 6-digit OTP code
+            var random = new Random();
+            var otpCode = random.Next(100000, 999999).ToString();
+            
+            var result = await _userRepository.CreateEmailChangeOtpAsync(userId, currentEmail, newEmail, step, otpCode);
+            
+            if (result > 0)
+            {
+                return (true, _localization.GetString("ChangeEmail.OtpCreated"), otpCode);
+            }
+            
+            return (false, _localization.GetString("ChangeEmail.OtpCreationFailed"), string.Empty);
+        }
+        catch (Exception ex)
+        {
+            return (false, _localization.GetString("Error.Generic") + ": " + ex.Message, string.Empty);
+        }
+    }
+
+    /// <summary>
+    /// Verify OTP cho email change
+    /// </summary>
+    public async Task<(bool Success, string Message, string NewEmail)> VerifyEmailChangeOtpAsync(int userId, string otpCode, int step)
+    {
+        try
+        {
+            var result = await _userRepository.VerifyEmailChangeOtpAsync(userId, step, otpCode);
+            
+            if (result.IsValid)
+            {
+                return (true, _localization.GetString("ChangeEmail.OtpVerified"), result.NewEmail ?? string.Empty);
+            }
+            
+            return (false, result.Message, string.Empty);
+        }
+        catch (Exception ex)
+        {
+            return (false, _localization.GetString("Error.Generic") + ": " + ex.Message, string.Empty);
+        }
+    }
+
+    /// <summary>
+    /// Cập nhật email mới cho user
+    /// </summary>
+    public async Task<bool> UpdateUserEmailAsync(int userId, string newEmail)
+    {
+        try
+        {
+            // Get current user to get old email
+            var user = await _userRepository.GetByIdAsync(userId);
+            if (user == null) return false;
+            
+            return await _userRepository.UpdateUserEmailAsync(userId, user.Email, newEmail);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Lấy OTP record gần nhất - Không còn cần thiết vì stored procedure tự quản lý
+    /// </summary>
+    public async Task<EmailChangeOtp?> GetLatestEmailChangeOtpAsync(int userId, int step)
+    {
+        try
+        {
+            // This method is kept for interface compatibility
+            // The actual OTP data is managed by the stored procedure
+            return null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Verify password của user
+    /// </summary>
+    public async Task<bool> VerifyPasswordAsync(int userId, string password)
+    {
+        try
+        {
+            var user = await _userRepository.GetByIdAsync(userId);
+            if (user == null) return false;
+
+            return BCrypt.Net.BCrypt.Verify(password, user.Password);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    #endregion
+
     /// <summary>
     /// Generate secure token cho password reset
     /// </summary>

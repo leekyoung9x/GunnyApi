@@ -934,5 +934,112 @@ public class UserRepository : BaseRepository<User>, IUserRepository
             throw new Exception($"Error resetting password: {ex.Message}", ex);
         }
     }
+
+    /// <summary>
+    /// Tạo OTP cho việc thay đổi email
+    /// </summary>
+    public async Task<int> CreateEmailChangeOtpAsync(int userId, string currentEmail, string newEmail, int step, string otpCode, int expiresInMinutes = 15)
+    {
+        try
+        {
+            SqlInjectionProtection.ValidateInputs(
+                (currentEmail, nameof(currentEmail)),
+                (newEmail, nameof(newEmail)),
+                (otpCode, nameof(otpCode))
+            );
+
+            using var connection = _connectionFactory.CreateConnection();
+            
+            var parameters = new DynamicParameters();
+            parameters.Add("@UserId", userId);
+            parameters.Add("@CurrentEmail", currentEmail);
+            parameters.Add("@NewEmail", newEmail);
+            parameters.Add("@Step", step);
+            parameters.Add("@OtpCode", otpCode);
+            parameters.Add("@ExpiresInMinutes", expiresInMinutes);
+
+            var result = await connection.QueryFirstOrDefaultAsync<int?>(
+                "sp_CreateEmailChangeOTP",
+                parameters,
+                commandType: CommandType.StoredProcedure
+            );
+
+            return result ?? 0;
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Error creating email change OTP: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Xác thực OTP thay đổi email
+    /// </summary>
+    public async Task<(bool IsValid, string Message, string? NewEmail)> VerifyEmailChangeOtpAsync(int userId, int step, string otpCode)
+    {
+        try
+        {
+            SqlInjectionProtection.ValidateInput(otpCode, nameof(otpCode));
+
+            using var connection = _connectionFactory.CreateConnection();
+            
+            var parameters = new DynamicParameters();
+            parameters.Add("@UserId", userId);
+            parameters.Add("@Step", step);
+            parameters.Add("@OtpCode", otpCode);
+
+            var result = await connection.QueryFirstOrDefaultAsync<dynamic>(
+                "sp_VerifyEmailChangeOTP",
+                parameters,
+                commandType: CommandType.StoredProcedure
+            );
+
+            if (result == null)
+            {
+                return (false, "Có lỗi xảy ra khi xác thực OTP", null);
+            }
+
+            bool isValid = result.IsValid;
+            string message = result.Message;
+            string? newEmail = result.NewEmail;
+
+            return (isValid, message, newEmail);
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Error verifying email change OTP: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Cập nhật email của user
+    /// </summary>
+    public async Task<bool> UpdateUserEmailAsync(int userId, string oldEmail, string newEmail)
+    {
+        try
+        {
+            SqlInjectionProtection.ValidateInputs(
+                (oldEmail, nameof(oldEmail)),
+                (newEmail, nameof(newEmail))
+            );
+
+            using var connection = _connectionFactory.CreateConnection();
+
+            // Cập nhật email trong Mem_Account/Mem_Users
+            var sql = $"UPDATE {TableName} SET Email = @NewEmail WHERE UserId = @UserId AND Email = @OldEmail";
+            var rowsAffected = await connection.ExecuteAsync(sql, new 
+            { 
+                UserId = userId,
+                OldEmail = oldEmail,
+                NewEmail = newEmail
+            });
+
+            return rowsAffected > 0;
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Error updating user email: {ex.Message}", ex);
+        }
+    }
 }
 

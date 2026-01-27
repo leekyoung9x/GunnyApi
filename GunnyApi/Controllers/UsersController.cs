@@ -961,4 +961,542 @@ public class UsersController : BaseApiController
             });
         }
     }
+
+    #region Change Email Endpoints
+
+    /// <summary>
+    /// Step 1: Khởi tạo yêu cầu đổi email - Gửi OTP đến email cũ
+    /// </summary>
+    [HttpPost("change-email/initiate")]
+    public async Task<IActionResult> InitiateEmailChange([FromBody] ChangeEmailRequestStep1 request)
+    {
+        try
+        {
+            // Kiểm tra user đã đăng nhập
+            if (!_userContext.UserId.HasValue)
+            {
+                return Unauthorized(new { message = _localization.GetString("Login.Unauthorized") });
+            }
+
+            // Validate input
+            if (string.IsNullOrWhiteSpace(request.CurrentPassword) || 
+                string.IsNullOrWhiteSpace(request.NewEmail) || 
+                string.IsNullOrWhiteSpace(request.ConfirmNewEmail))
+            {
+                return BadRequest(new { message = _localization.GetString("ChangeEmail.AllFieldsRequired") });
+            }
+
+            // Validate email format
+            if (!IsValidEmail(request.NewEmail))
+            {
+                return BadRequest(new { message = _localization.GetString("ChangeEmail.InvalidEmailFormat") });
+            }
+
+            // Kiểm tra email mới khớp
+            if (request.NewEmail != request.ConfirmNewEmail)
+            {
+                return BadRequest(new { message = _localization.GetString("ChangeEmail.EmailsDoNotMatch") });
+            }
+
+            // Lấy thông tin user hiện tại
+            var user = await _userService.GetByIdAsync(_userContext.UserId.Value);
+            if (user == null)
+            {
+                return NotFound(new { message = _localization.GetString("User.NotFound") });
+            }
+
+            // Kiểm tra email mới không trùng với email cũ
+            if (string.Equals(user.Email, request.NewEmail, StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { message = _localization.GetString("ChangeEmail.SameAsCurrentEmail") });
+            }
+
+            // Xác thực mật khẩu hiện tại
+            var isPasswordValid = await _userService.VerifyPasswordAsync(_userContext.UserId.Value, request.CurrentPassword);
+            if (!isPasswordValid)
+            {
+                return BadRequest(new { message = _localization.GetString("ChangePassword.IncorrectCurrentPassword") });
+            }
+
+            // Kiểm tra email mới có tồn tại trong hệ thống không
+            var existingUser = await _userService.GetByEmailAsync(request.NewEmail);
+            if (existingUser != null)
+            {
+                return BadRequest(new { message = _localization.GetString("ChangeEmail.EmailAlreadyExists") });
+            }
+
+            // Tạo OTP cho Step 1 (email cũ)
+            var otpResult = await _userService.CreateEmailChangeOtpAsync(_userContext.UserId.Value, user.Email, request.NewEmail, 1);
+            
+            if (!otpResult.Success)
+            {
+                return BadRequest(new { message = otpResult.Message });
+            }
+
+            // Gửi OTP qua email cũ
+            await SendOldEmailOtpEmail(user.Email, user.Username, otpResult.OtpCode);
+
+            // Trả về response
+            return Ok(new ChangeEmailStep1Response
+            {
+                Success = true,
+                Message = _localization.GetString("ChangeEmail.OtpSentToCurrentEmail"),
+                MaskedCurrentEmail = MaskEmail(user.Email),
+                MaskedNewEmail = MaskEmail(request.NewEmail)
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = _localization.GetString("Error.Generic"), error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Step 2: Xác thực OTP từ email cũ
+    /// </summary>
+    [HttpPost("change-email/verify-old-email")]
+    public async Task<IActionResult> VerifyOldEmailOtp([FromBody] VerifyOldEmailOtpRequest request)
+    {
+        try
+        {
+            // Kiểm tra user đã đăng nhập
+            if (!_userContext.UserId.HasValue)
+            {
+                return Unauthorized(new { message = _localization.GetString("Login.Unauthorized") });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.OtpCode))
+            {
+                return BadRequest(new { message = _localization.GetString("ChangeEmail.OtpRequired") });
+            }
+
+            // Verify OTP cho Step 1
+            var verifyResult = await _userService.VerifyEmailChangeOtpAsync(_userContext.UserId.Value, request.OtpCode, 1);
+            
+            if (!verifyResult.Success)
+            {
+                return BadRequest(new { message = verifyResult.Message });
+            }
+
+            // Lấy thông tin new email từ OTP record
+            var user = await _userService.GetByIdAsync(_userContext.UserId.Value);
+            if (user == null)
+            {
+                return NotFound(new { message = _localization.GetString("User.NotFound") });
+            }
+
+            // Tạo OTP cho Step 2 (email mới)
+            var otpStep2Result = await _userService.CreateEmailChangeOtpAsync(
+                _userContext.UserId.Value, 
+                user.Email, 
+                verifyResult.NewEmail, 
+                2
+            );
+            
+            if (!otpStep2Result.Success)
+            {
+                return BadRequest(new { message = otpStep2Result.Message });
+            }
+
+            // Gửi OTP qua email mới
+            await SendNewEmailOtpEmail(verifyResult.NewEmail, user.Username, otpStep2Result.OtpCode);
+
+            // Trả về response
+            return Ok(new VerifyOldEmailOtpResponse
+            {
+                Success = true,
+                Message = _localization.GetString("ChangeEmail.OtpSentToNewEmail"),
+                MaskedNewEmail = MaskEmail(verifyResult.NewEmail)
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = _localization.GetString("Error.Generic"), error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Step 3: Xác thực OTP từ email mới và hoàn tất đổi email
+    /// </summary>
+    [HttpPost("change-email/verify-new-email")]
+    public async Task<IActionResult> VerifyNewEmailOtp([FromBody] VerifyNewEmailOtpRequest request)
+    {
+        try
+        {
+            // Kiểm tra user đã đăng nhập
+            if (!_userContext.UserId.HasValue)
+            {
+                return Unauthorized(new { message = _localization.GetString("Login.Unauthorized") });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.OtpCode) || string.IsNullOrWhiteSpace(request.NewEmail))
+            {
+                return BadRequest(new { message = _localization.GetString("ChangeEmail.AllFieldsRequired") });
+            }
+
+            // Verify OTP cho Step 2
+            var verifyResult = await _userService.VerifyEmailChangeOtpAsync(_userContext.UserId.Value, request.OtpCode, 2);
+            
+            if (!verifyResult.Success)
+            {
+                return BadRequest(new { message = verifyResult.Message });
+            }
+
+            // Kiểm tra new email khớp
+            if (!string.Equals(verifyResult.NewEmail, request.NewEmail, StringComparison.OrdinalIgnoreCase))
+            {
+                return BadRequest(new { message = _localization.GetString("ChangeEmail.EmailMismatch") });
+            }
+
+            // Cập nhật email mới vào database
+            var updateResult = await _userService.UpdateUserEmailAsync(_userContext.UserId.Value, request.NewEmail);
+            
+            if (!updateResult)
+            {
+                return BadRequest(new { message = _localization.GetString("ChangeEmail.UpdateFailed") });
+            }
+
+            // Trả về response
+            return Ok(new ChangeEmailCompleteResponse
+            {
+                Success = true,
+                Message = _localization.GetString("ChangeEmail.Success"),
+                NewEmail = request.NewEmail
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = _localization.GetString("Error.Generic"), error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Gửi lại OTP cho Step 1 hoặc Step 2
+    /// </summary>
+    [HttpPost("change-email/resend-otp")]
+    public async Task<IActionResult> ResendEmailOtp([FromBody] ResendEmailOtpRequest request)
+    {
+        try
+        {
+            // Kiểm tra user đã đăng nhập
+            if (!_userContext.UserId.HasValue)
+            {
+                return Unauthorized(new { message = _localization.GetString("Login.Unauthorized") });
+            }
+
+            if (request.Step != 1 && request.Step != 2)
+            {
+                return BadRequest(new { message = _localization.GetString("ChangeEmail.InvalidStep") });
+            }
+
+            // Lấy thông tin user
+            var user = await _userService.GetByIdAsync(_userContext.UserId.Value);
+            if (user == null)
+            {
+                return NotFound(new { message = _localization.GetString("User.NotFound") });
+            }
+
+            // Determine emails based on step
+            string currentEmail = user.Email;
+            string newEmail = request.NewEmail ?? string.Empty;
+
+            // Validate newEmail is provided for both steps
+            if (string.IsNullOrEmpty(newEmail))
+            {
+                return BadRequest(new { message = _localization.GetString("ChangeEmail.NewEmailRequired") });
+            }
+
+            // Tạo OTP mới
+            var otpResult = await _userService.CreateEmailChangeOtpAsync(
+                _userContext.UserId.Value, 
+                currentEmail, 
+                newEmail, 
+                request.Step
+            );
+            
+            if (!otpResult.Success)
+            {
+                return BadRequest(new { message = otpResult.Message });
+            }
+
+            // Gửi OTP theo step
+            if (request.Step == 1)
+            {
+                await SendOldEmailOtpEmail(currentEmail, user.Username, otpResult.OtpCode);
+            }
+            else
+            {
+                await SendNewEmailOtpEmail(newEmail, user.Username, otpResult.OtpCode);
+            }
+
+            // Trả về response
+            return Ok(new ResendOtpResponse
+            {
+                Success = true,
+                Message = request.Step == 1 
+                    ? _localization.GetString("ChangeEmail.OtpResentToCurrentEmail") 
+                    : _localization.GetString("ChangeEmail.OtpResentToNewEmail")
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = _localization.GetString("Error.Generic"), error = ex.Message });
+        }
+    }
+
+    #endregion
+
+    #region Private Helper Methods
+
+    /// <summary>
+    /// Gửi OTP qua email cũ
+    /// </summary>
+    private async Task SendOldEmailOtpEmail(string email, string username, string otpCode)
+    {
+        var emailService = HttpContext.RequestServices.GetRequiredService<Infrastructure.Services.IEmailService>();
+        
+        var subject = _localization.GetString("ChangeEmail.OldEmail.Subject");
+        var title = _localization.GetString("ChangeEmail.OldEmail.Title");
+        var greeting = _localization.GetString("ChangeEmail.OldEmail.Greeting", username);
+        var intro = _localization.GetString("ChangeEmail.OldEmail.Intro");
+        var otpLabel = _localization.GetString("ChangeEmail.OldEmail.OtpLabel");
+        var validity = _localization.GetString("ChangeEmail.OldEmail.Validity");
+        var warningTitle = _localization.GetString("ChangeEmail.OldEmail.WarningTitle");
+        var warning = _localization.GetString("ChangeEmail.OldEmail.Warning");
+        var ignore = _localization.GetString("ChangeEmail.OldEmail.Ignore");
+        var autoMessage = _localization.GetString("ChangeEmail.OldEmail.AutoMessage");
+        var copyright = _localization.GetString("ChangeEmail.OldEmail.Copyright");
+
+        var body = $@"
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                    .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                    .header {{ 
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white; 
+                        padding: 30px; 
+                        text-align: center;
+                        border-radius: 10px 10px 0 0;
+                    }}
+                    .header h1 {{ margin: 0; font-size: 24px; }}
+                    .content {{ 
+                        background: #fff; 
+                        padding: 30px; 
+                        border: 1px solid #ddd; 
+                        border-top: none; 
+                    }}
+                    .otp-box {{ 
+                        background: #f8f9fa;
+                        border: 2px dashed #667eea;
+                        padding: 20px;
+                        text-align: center;
+                        margin: 20px 0;
+                        border-radius: 5px;
+                    }}
+                    .otp-code {{ 
+                        font-size: 32px;
+                        font-weight: bold;
+                        color: #667eea;
+                        letter-spacing: 5px;
+                        font-family: 'Courier New', monospace;
+                    }}
+                    .warning {{ 
+                        background: #fff3cd;
+                        border-left: 4px solid #ffc107;
+                        padding: 15px;
+                        margin: 20px 0;
+                    }}
+                    .footer {{ 
+                        background: #f8f9fa; 
+                        padding: 20px; 
+                        text-align: center; 
+                        border-radius: 0 0 10px 10px;
+                        border: 1px solid #ddd;
+                        border-top: none;
+                    }}
+                    .footer p {{ margin: 5px 0; font-size: 12px; color: #666; }}
+                </style>
+            </head>
+            <body>
+                <div class='container'>
+                    <div class='header'>
+                        <h1>🔐 {title}</h1>
+                    </div>
+                    <div class='content'>
+                        <p><strong>{greeting}</strong></p>
+                        <p>{intro}</p>
+                        
+                        <div class='otp-box'>
+                            <p style='margin: 0 0 10px 0; color: #666;'>{otpLabel}</p>
+                            <div class='otp-code'>{otpCode}</div>
+                        </div>
+
+                        <p style='text-align: center; color: #666;'><em>⏱️ {validity}</em></p>
+
+                        <div class='warning'>
+                            <strong>⚠️ {warningTitle}</strong><br>
+                            {warning}
+                        </div>
+
+                        <p>{ignore}</p>
+                    </div>
+                    <div class='footer'>
+                        <p>{autoMessage}</p>
+                        <p>{copyright}</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        ";
+
+        await emailService.SendEmailAsync(email, subject, body);
+    }
+
+    /// <summary>
+    /// Gửi OTP qua email mới
+    /// </summary>
+    private async Task SendNewEmailOtpEmail(string email, string username, string otpCode)
+    {
+        var emailService = HttpContext.RequestServices.GetRequiredService<Infrastructure.Services.IEmailService>();
+        
+        var subject = _localization.GetString("ChangeEmail.NewEmail.Subject");
+        var title = _localization.GetString("ChangeEmail.NewEmail.Title");
+        var greeting = _localization.GetString("ChangeEmail.NewEmail.Greeting", username);
+        var intro = _localization.GetString("ChangeEmail.NewEmail.Intro");
+        var otpLabel = _localization.GetString("ChangeEmail.NewEmail.OtpLabel");
+        var validity = _localization.GetString("ChangeEmail.NewEmail.Validity");
+        var warningTitle = _localization.GetString("ChangeEmail.NewEmail.WarningTitle");
+        var warning = _localization.GetString("ChangeEmail.NewEmail.Warning");
+        var ignore = _localization.GetString("ChangeEmail.NewEmail.Ignore");
+        var autoMessage = _localization.GetString("ChangeEmail.NewEmail.AutoMessage");
+        var copyright = _localization.GetString("ChangeEmail.NewEmail.Copyright");
+
+        var body = $@"
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <style>
+                    body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                    .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                    .header {{ 
+                        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+                        color: white; 
+                        padding: 30px; 
+                        text-align: center;
+                        border-radius: 10px 10px 0 0;
+                    }}
+                    .header h1 {{ margin: 0; font-size: 24px; }}
+                    .content {{ 
+                        background: #fff; 
+                        padding: 30px; 
+                        border: 1px solid #ddd; 
+                        border-top: none; 
+                    }}
+                    .otp-box {{ 
+                        background: #f8f9fa;
+                        border: 2px dashed #28a745;
+                        padding: 20px;
+                        text-align: center;
+                        margin: 20px 0;
+                        border-radius: 5px;
+                    }}
+                    .otp-code {{ 
+                        font-size: 32px;
+                        font-weight: bold;
+                        color: #28a745;
+                        letter-spacing: 5px;
+                        font-family: 'Courier New', monospace;
+                    }}
+                    .warning {{ 
+                        background: #fff3cd;
+                        border-left: 4px solid #ffc107;
+                        padding: 15px;
+                        margin: 20px 0;
+                    }}
+                    .footer {{ 
+                        background: #f8f9fa; 
+                        padding: 20px; 
+                        text-align: center; 
+                        border-radius: 0 0 10px 10px;
+                        border: 1px solid #ddd;
+                        border-top: none;
+                    }}
+                    .footer p {{ margin: 5px 0; font-size: 12px; color: #666; }}
+                </style>
+            </head>
+            <body>
+                <div class='container'>
+                    <div class='header'>
+                        <h1>✅ {title}</h1>
+                    </div>
+                    <div class='content'>
+                        <p><strong>{greeting}</strong></p>
+                        <p>{intro}</p>
+                        
+                        <div class='otp-box'>
+                            <p style='margin: 0 0 10px 0; color: #666;'>{otpLabel}</p>
+                            <div class='otp-code'>{otpCode}</div>
+                        </div>
+
+                        <p style='text-align: center; color: #666;'><em>⏱️ {validity}</em></p>
+
+                        <div class='warning'>
+                            <strong>⚠️ {warningTitle}</strong><br>
+                            {warning}
+                        </div>
+
+                        <p>{ignore}</p>
+                    </div>
+                    <div class='footer'>
+                        <p>{autoMessage}</p>
+                        <p>{copyright}</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        ";
+
+        await emailService.SendEmailAsync(email, subject, body);
+    }
+
+    /// <summary>
+    /// Mask email để hiển thị (ví dụ: u***@example.com)
+    /// </summary>
+    private string MaskEmail(string email)
+    {
+        if (string.IsNullOrEmpty(email) || !email.Contains("@"))
+            return email;
+
+        var parts = email.Split('@');
+        var username = parts[0];
+        var domain = parts[1];
+
+        if (username.Length <= 2)
+        {
+            return $"{username[0]}***@{domain}";
+        }
+
+        return $"{username[0]}***{username[^1]}@{domain}";
+    }
+
+    /// <summary>
+    /// Validate email format
+    /// </summary>
+    private bool IsValidEmail(string email)
+    {
+        try
+        {
+            var addr = new System.Net.Mail.MailAddress(email);
+            return addr.Address == email;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    #endregion
 }
