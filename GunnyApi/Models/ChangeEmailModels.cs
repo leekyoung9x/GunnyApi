@@ -121,6 +121,17 @@ public class ResendOtpResponse
 }
 
 /// <summary>
+/// Request để xác nhận verify email
+/// </summary>
+public class ConfirmVerifyEmailRequest
+{
+    /// <summary>
+    /// Mã OTP để verify email
+    /// </summary>
+    public string OtpCode { get; set; } = string.Empty;
+}
+
+/// <summary>
 /// Model cho EmailChangeOTP từ database
 /// </summary>
 public class EmailChangeOtp

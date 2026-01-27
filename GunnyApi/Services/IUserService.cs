@@ -27,4 +27,5 @@ public interface IUserService : IBaseService<User>
     Task<bool> UpdateUserEmailAsync(int userId, string newEmail);
     Task<EmailChangeOtp?> GetLatestEmailChangeOtpAsync(int userId, int step);
     Task<bool> VerifyPasswordAsync(int userId, string password);
+    Task MarkEmailAsVerifiedAsync(int userId);
 }

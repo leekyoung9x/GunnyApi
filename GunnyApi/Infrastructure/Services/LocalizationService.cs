@@ -122,6 +122,18 @@ public class LocalizationService : ILocalizationService
             ["ChangeEmail.OtpResentToCurrentEmail"] = "Đã gửi lại mã OTP đến email hiện tại",
             ["ChangeEmail.OtpResentToNewEmail"] = "Đã gửi lại mã OTP đến email mới",
             
+            // Verify Email
+            ["VerifyEmail.AlreadyVerified"] = "Email đã được xác thực",
+            ["VerifyEmail.OtpSent"] = "Mã OTP đã được gửi đến email của bạn",
+            ["VerifyEmail.Success"] = "Xác thực email thành công",
+            ["VerifyEmail.Email.Subject"] = "Xác Thực Email - DDTank",
+            ["VerifyEmail.Email.Title"] = "Xác Thực Email",
+            ["VerifyEmail.Email.Greeting"] = "Xin chào {0},",
+            ["VerifyEmail.Email.Intro"] = "Cảm ơn bạn đã đăng ký! Vui lòng sử dụng mã OTP bên dưới để xác thực địa chỉ email của bạn.",
+            ["VerifyEmail.Email.OtpLabel"] = "Mã OTP Của Bạn",
+            ["VerifyEmail.Email.ExpiryNotice"] = "Mã này sẽ hết hạn sau 15 phút",
+            ["VerifyEmail.Email.Footer"] = "Nếu bạn không yêu cầu xác thực này, vui lòng bỏ qua email này.",
+            
             // Change Email - Old Email OTP Template
             ["ChangeEmail.OldEmail.Subject"] = "Xác nhận đổi email - Bước 1",
             ["ChangeEmail.OldEmail.Title"] = "Xác Nhận Đổi Email",
@@ -318,6 +330,18 @@ public class LocalizationService : ILocalizationService
             ["ChangeEmail.NoActiveRequest"] = "No active email change request found",
             ["ChangeEmail.OtpResentToCurrentEmail"] = "OTP resent to current email",
             ["ChangeEmail.OtpResentToNewEmail"] = "OTP resent to new email",
+            
+            // Verify Email
+            ["VerifyEmail.AlreadyVerified"] = "Email already verified",
+            ["VerifyEmail.OtpSent"] = "OTP code has been sent to your email",
+            ["VerifyEmail.Success"] = "Email verified successfully",
+            ["VerifyEmail.Email.Subject"] = "Verify Your Email - DDTank",
+            ["VerifyEmail.Email.Title"] = "Verify Your Email",
+            ["VerifyEmail.Email.Greeting"] = "Hello {0},",
+            ["VerifyEmail.Email.Intro"] = "Thank you for registering! Please use the OTP code below to verify your email address.",
+            ["VerifyEmail.Email.OtpLabel"] = "Your OTP Code",
+            ["VerifyEmail.Email.ExpiryNotice"] = "This code will expire in 15 minutes",
+            ["VerifyEmail.Email.Footer"] = "If you didn't request this verification, please ignore this email.",
             
             // Change Email - Old Email OTP Template
             ["ChangeEmail.OldEmail.Subject"] = "Verify Email Change - Step 1",

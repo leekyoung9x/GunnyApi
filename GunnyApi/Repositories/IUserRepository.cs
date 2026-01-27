@@ -34,4 +34,5 @@ public interface IUserRepository : IBaseRepository<User>
     Task<int> CreateEmailChangeOtpAsync(int userId, string currentEmail, string newEmail, int step, string otpCode, int expiresInMinutes = 15);
     Task<(bool IsValid, string Message, string? NewEmail)> VerifyEmailChangeOtpAsync(int userId, int step, string otpCode);
     Task<bool> UpdateUserEmailAsync(int userId, string oldEmail, string newEmail);
+    Task MarkEmailAsVerifiedAsync(int userId);
 }

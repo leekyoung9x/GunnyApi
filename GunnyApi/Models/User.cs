@@ -13,4 +13,5 @@ public class User
     public DateTime? UpdatedAt { get; set; }
     public bool IsActive { get; set; }
     public int Money { get; set; }
+    public bool VerifiedEmail { get; set; }
 }

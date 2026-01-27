@@ -1244,9 +1244,170 @@ public class UsersController : BaseApiController
         }
     }
 
+    /// <summary>
+    /// Gửi OTP để verify email hiện tại (cho user mới chưa verify)
+    /// </summary>
+    [HttpPost("verify-email/send-otp")]
+    public async Task<IActionResult> SendVerifyEmailOtp()
+    {
+        try
+        {
+            // Kiểm tra user đã đăng nhập
+            if (!_userContext.UserId.HasValue)
+            {
+                return Unauthorized(new { message = _localization.GetString("Login.Unauthorized") });
+            }
+
+            // Lấy thông tin user
+            var user = await _userService.GetByIdAsync(_userContext.UserId.Value);
+            if (user == null)
+            {
+                return NotFound(new { message = _localization.GetString("User.NotFound") });
+            }
+
+            // Nếu email đã verified rồi
+            if (user.VerifiedEmail)
+            {
+                return BadRequest(new { message = _localization.GetString("VerifyEmail.AlreadyVerified") });
+            }
+
+            // Tạo OTP (dùng Step = 1 cho verify email)
+            var otpResult = await _userService.CreateEmailChangeOtpAsync(
+                _userContext.UserId.Value,
+                user.FullName, // Email thật đang lưu trong FullName
+                user.FullName, // newEmail = currentEmail cho verify
+                1 // Step 1
+            );
+
+            if (!otpResult.Success)
+            {
+                return BadRequest(new { message = otpResult.Message });
+            }
+
+            // Gửi email với OTP (FullName chứa email thật)
+            await SendVerifyEmailOtpEmail(user.FullName, user.Username, otpResult.OtpCode);
+
+            return Ok(new
+            {
+                success = true,
+                message = _localization.GetString("VerifyEmail.OtpSent")
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = _localization.GetString("Error.Generic"), error = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Xác thực OTP và đánh dấu email đã verified
+    /// </summary>
+    [HttpPost("verify-email/confirm")]
+    public async Task<IActionResult> ConfirmVerifyEmail([FromBody] ConfirmVerifyEmailRequest request)
+    {
+        try
+        {
+            // Kiểm tra user đã đăng nhập
+            if (!_userContext.UserId.HasValue)
+            {
+                return Unauthorized(new { message = _localization.GetString("Login.Unauthorized") });
+            }
+
+            // Validate OTP code
+            if (string.IsNullOrEmpty(request.OtpCode) || request.OtpCode.Length != 6)
+            {
+                return BadRequest(new { message = _localization.GetString("ChangeEmail.InvalidOtp") });
+            }
+
+            // Lấy thông tin user
+            var user = await _userService.GetByIdAsync(_userContext.UserId.Value);
+            if (user == null)
+            {
+                return NotFound(new { message = _localization.GetString("User.NotFound") });
+            }
+
+            // Verify OTP (Step = 1)
+            var verifyResult = await _userService.VerifyEmailChangeOtpAsync(
+                _userContext.UserId.Value,
+                request.OtpCode,
+                1 // Step 1
+            );
+
+            if (!verifyResult.Success)
+            {
+                return BadRequest(new { message = verifyResult.Message });
+            }
+
+            // Cập nhật VerifiedEmail = true
+            await _userService.MarkEmailAsVerifiedAsync(_userContext.UserId.Value);
+
+            return Ok(new
+            {
+                success = true,
+                message = _localization.GetString("VerifyEmail.Success")
+            });
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new { message = _localization.GetString("Error.Generic"), error = ex.Message });
+        }
+    }
+
     #endregion
 
     #region Private Helper Methods
+
+    /// <summary>
+    /// Gửi OTP để verify email (cho user mới)
+    /// </summary>
+    private async Task SendVerifyEmailOtpEmail(string email, string username, string otpCode)
+    {
+        var emailService = HttpContext.RequestServices.GetRequiredService<Infrastructure.Services.IEmailService>();
+        
+        var subject = _localization.GetString("VerifyEmail.Email.Subject");
+        var title = _localization.GetString("VerifyEmail.Email.Title");
+        var greeting = _localization.GetString("VerifyEmail.Email.Greeting", username);
+        var intro = _localization.GetString("VerifyEmail.Email.Intro");
+        var otpLabel = _localization.GetString("VerifyEmail.Email.OtpLabel");
+        var expiryNotice = _localization.GetString("VerifyEmail.Email.ExpiryNotice");
+        var footer = _localization.GetString("VerifyEmail.Email.Footer");
+
+        var body = $@"
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+                .content {{ background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }}
+                .otp-box {{ background: white; border: 2px dashed #667eea; border-radius: 8px; padding: 20px; text-align: center; margin: 20px 0; }}
+                .otp-code {{ font-size: 32px; font-weight: bold; color: #667eea; letter-spacing: 5px; }}
+                .footer {{ text-align: center; margin-top: 20px; color: #666; font-size: 12px; }}
+            </style>
+        </head>
+        <body>
+            <div class='container'>
+                <div class='header'>
+                    <h1>{title}</h1>
+                </div>
+                <div class='content'>
+                    <p>{greeting}</p>
+                    <p>{intro}</p>
+                    <div class='otp-box'>
+                        <p style='margin: 0; font-size: 14px; color: #666;'>{otpLabel}</p>
+                        <p class='otp-code'>{otpCode}</p>
+                    </div>
+                    <p style='color: #e74c3c;'><strong>⏰ {expiryNotice}</strong></p>
+                    <p>{footer}</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        ";
+
+        await emailService.SendEmailAsync(email, subject, body);
+    }
 
     /// <summary>
     /// Gửi OTP qua email cũ

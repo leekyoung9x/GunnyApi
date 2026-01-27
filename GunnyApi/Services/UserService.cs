@@ -156,6 +156,7 @@ public class UserService : BaseService<User>, IUserService
                     UserId = userId.Value,
                     Token = token,
                     RefreshToken = refreshToken,
+                    EmailVerified = user.VerifiedEmail,
                     Message = _localization.GetString("Login.Success")
                 };
             }
@@ -1097,6 +1098,14 @@ public class UserService : BaseService<User>, IUserService
         {
             return false;
         }
+    }
+
+    /// <summary>
+    /// Đánh dấu email đã được verify
+    /// </summary>
+    public async Task MarkEmailAsVerifiedAsync(int userId)
+    {
+        await _userRepository.MarkEmailAsVerifiedAsync(userId);
     }
 
     #endregion

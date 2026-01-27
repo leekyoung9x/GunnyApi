@@ -1025,8 +1025,8 @@ public class UserRepository : BaseRepository<User>, IUserRepository
 
             using var connection = _connectionFactory.CreateConnection();
 
-            // Cập nhật email trong Mem_Account/Mem_Users
-            var sql = $"UPDATE {TableName} SET Email = @NewEmail WHERE UserId = @UserId AND Email = @OldEmail";
+            // Cập nhật email và set VerifiedEmail = true trong Mem_Account
+            var sql = $"UPDATE {TableName} SET Email = @NewEmail, VerifiedEmail = 1 WHERE UserId = @UserId AND Email = @OldEmail";
             var rowsAffected = await connection.ExecuteAsync(sql, new 
             { 
                 UserId = userId,
@@ -1039,6 +1039,24 @@ public class UserRepository : BaseRepository<User>, IUserRepository
         catch (Exception ex)
         {
             throw new Exception($"Error updating user email: {ex.Message}", ex);
+        }
+    }
+
+    /// <summary>
+    /// Đánh dấu email đã được verify
+    /// </summary>
+    public async Task MarkEmailAsVerifiedAsync(int userId)
+    {
+        try
+        {
+            using var connection = _connectionFactory.CreateConnection();
+
+            var sql = $"UPDATE {TableName} SET VerifiedEmail = 1 WHERE UserId = @UserId";
+            await connection.ExecuteAsync(sql, new { UserId = userId });
+        }
+        catch (Exception ex)
+        {
+            throw new Exception($"Error marking email as verified: {ex.Message}", ex);
         }
     }
 }
