@@ -782,7 +782,7 @@ public class UserRepository : BaseRepository<User>, IUserRepository
             SqlInjectionProtection.ValidateInput(email, nameof(email));
 
             using var connection = _connectionFactory.CreateConnection();
-            var sql = $"SELECT * FROM {TableName} WHERE Email = @Email";
+            var sql = $"SELECT * FROM {TableName} WHERE Fullname = @Email";
             var result = await connection.QueryFirstOrDefaultAsync<MemAccount>(sql, new { Email = email });
             
             if (result == null) return null;
