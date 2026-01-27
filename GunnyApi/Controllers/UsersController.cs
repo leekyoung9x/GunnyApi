@@ -42,6 +42,25 @@ public class UsersController : BaseApiController
     }
 
     /// <summary>
+    /// Set language based on Accept-Language header
+    /// </summary>
+    private void SetLanguageFromHeader()
+    {
+        var acceptLanguage = Request.Headers["Accept-Language"].ToString();
+        if (!string.IsNullOrEmpty(acceptLanguage))
+        {
+            // Parse Accept-Language header (e.g., "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7")
+            var primaryLanguage = acceptLanguage.Split(',')[0].Split('-')[0].Trim().ToLower();
+            
+            // Support vi and en
+            if (primaryLanguage == "vi" || primaryLanguage == "en")
+            {
+                _localization.SetLanguage(primaryLanguage);
+            }
+        }
+    }
+
+    /// <summary>
     /// Lấy tất cả users
     /// </summary>
     [HttpGet]
@@ -972,6 +991,9 @@ public class UsersController : BaseApiController
     {
         try
         {
+            // Set language from request header
+            SetLanguageFromHeader();
+            
             // Kiểm tra user đã đăng nhập
             if (!_userContext.UserId.HasValue)
             {
@@ -1059,6 +1081,9 @@ public class UsersController : BaseApiController
     {
         try
         {
+            // Set language from request header
+            SetLanguageFromHeader();
+            
             // Kiểm tra user đã đăng nhập
             if (!_userContext.UserId.HasValue)
             {
@@ -1178,6 +1203,9 @@ public class UsersController : BaseApiController
     {
         try
         {
+            // Set language from request header
+            SetLanguageFromHeader();
+            
             // Kiểm tra user đã đăng nhập
             if (!_userContext.UserId.HasValue)
             {
@@ -1252,6 +1280,9 @@ public class UsersController : BaseApiController
     {
         try
         {
+            // Set language from request header
+            SetLanguageFromHeader();
+            
             // Kiểm tra user đã đăng nhập
             if (!_userContext.UserId.HasValue)
             {
