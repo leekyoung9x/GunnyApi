@@ -165,12 +165,13 @@ public class UsersController : BaseApiController
             {
                 id = user.UserId,
                 username = user.Username,
-                email = user.Email,
+                email = user.Email, // Email thực tế được lưu trong FullName
                 nickname = user.NickName,
                 fullname = user.FullName,
                 money = user.Money,
                 createdAt = user.CreatedAt,
-                isActive = user.IsActive
+                isActive = user.IsActive,
+                emailVerified = user.VerifiedEmail
             });
         }
         catch (Exception ex)
@@ -991,32 +992,41 @@ public class UsersController : BaseApiController
     {
         try
         {
+            Console.WriteLine("=== [CHANGE EMAIL INITIATE] Starting request ===");
+            
             // Set language from request header
             SetLanguageFromHeader();
             
             // Kiểm tra user đã đăng nhập
             if (!_userContext.UserId.HasValue)
             {
+                Console.WriteLine("[CHANGE EMAIL INITIATE] ERROR: User not authenticated");
                 return Unauthorized(new { message = _localization.GetString("Login.Unauthorized") });
             }
+
+            Console.WriteLine($"[CHANGE EMAIL INITIATE] UserId: {_userContext.UserId.Value}");
+            Console.WriteLine($"[CHANGE EMAIL INITIATE] NewEmail: {request.NewEmail}");
 
             // Validate input
             if (string.IsNullOrWhiteSpace(request.CurrentPassword) || 
                 string.IsNullOrWhiteSpace(request.NewEmail) || 
                 string.IsNullOrWhiteSpace(request.ConfirmNewEmail))
             {
+                Console.WriteLine("[CHANGE EMAIL INITIATE] ERROR: Missing required fields");
                 return BadRequest(new { message = _localization.GetString("ChangeEmail.AllFieldsRequired") });
             }
 
             // Validate email format
             if (!IsValidEmail(request.NewEmail))
             {
+                Console.WriteLine($"[CHANGE EMAIL INITIATE] ERROR: Invalid email format: {request.NewEmail}");
                 return BadRequest(new { message = _localization.GetString("ChangeEmail.InvalidEmailFormat") });
             }
 
             // Kiểm tra email mới khớp
             if (request.NewEmail != request.ConfirmNewEmail)
             {
+                Console.WriteLine("[CHANGE EMAIL INITIATE] ERROR: Emails do not match");
                 return BadRequest(new { message = _localization.GetString("ChangeEmail.EmailsDoNotMatch") });
             }
 
@@ -1024,51 +1034,72 @@ public class UsersController : BaseApiController
             var user = await _userService.GetByIdAsync(_userContext.UserId.Value);
             if (user == null)
             {
+                Console.WriteLine($"[CHANGE EMAIL INITIATE] ERROR: User not found with ID: {_userContext.UserId.Value}");
                 return NotFound(new { message = _localization.GetString("User.NotFound") });
             }
+
+            Console.WriteLine($"[CHANGE EMAIL INITIATE] User found - Username: {user.Username}, CurrentEmail (FullName): {user.FullName}");
 
             // Kiểm tra email mới không trùng với email cũ
             if (string.Equals(user.Email, request.NewEmail, StringComparison.OrdinalIgnoreCase))
             {
+                Console.WriteLine("[CHANGE EMAIL INITIATE] ERROR: New email same as current email");
                 return BadRequest(new { message = _localization.GetString("ChangeEmail.SameAsCurrentEmail") });
             }
 
             // Xác thực mật khẩu hiện tại
+            Console.WriteLine("[CHANGE EMAIL INITIATE] Verifying current password...");
             var isPasswordValid = await _userService.VerifyPasswordAsync(_userContext.UserId.Value, request.CurrentPassword);
             if (!isPasswordValid)
             {
+                Console.WriteLine("[CHANGE EMAIL INITIATE] ERROR: Incorrect current password");
                 return BadRequest(new { message = _localization.GetString("ChangePassword.IncorrectCurrentPassword") });
             }
+            Console.WriteLine("[CHANGE EMAIL INITIATE] Password verified successfully");
 
             // Kiểm tra email mới có tồn tại trong hệ thống không
+            Console.WriteLine($"[CHANGE EMAIL INITIATE] Checking if new email exists: {request.NewEmail}");
             var existingUser = await _userService.GetByEmailAsync(request.NewEmail);
             if (existingUser != null)
             {
+                Console.WriteLine($"[CHANGE EMAIL INITIATE] ERROR: Email already exists - UserId: {existingUser.UserId}");
                 return BadRequest(new { message = _localization.GetString("ChangeEmail.EmailAlreadyExists") });
             }
+            Console.WriteLine("[CHANGE EMAIL INITIATE] New email is available");
 
             // Tạo OTP cho Step 1 (email cũ)
-            var otpResult = await _userService.CreateEmailChangeOtpAsync(_userContext.UserId.Value, user.Email, request.NewEmail, 1);
+            Console.WriteLine($"[CHANGE EMAIL INITIATE] Creating OTP - OldEmail: {user.FullName}, NewEmail: {request.NewEmail}, Step: 1");
+            var otpResult = await _userService.CreateEmailChangeOtpAsync(_userContext.UserId.Value, user.FullName, request.NewEmail, 1);
             
             if (!otpResult.Success)
             {
+                Console.WriteLine($"[CHANGE EMAIL INITIATE] ERROR: Failed to create OTP - {otpResult.Message}");
                 return BadRequest(new { message = otpResult.Message });
             }
+            Console.WriteLine($"[CHANGE EMAIL INITIATE] OTP created successfully - Code: {otpResult.OtpCode}");
 
             // Gửi OTP qua email cũ
-            await SendOldEmailOtpEmail(user.Email, user.Username, otpResult.OtpCode);
+            Console.WriteLine($"[CHANGE EMAIL INITIATE] Sending OTP email to: {user.FullName}");
+            await SendOldEmailOtpEmail(user.FullName, user.Username, otpResult.OtpCode);
+            Console.WriteLine("[CHANGE EMAIL INITIATE] OTP email sent successfully");
 
-            // Trả về response
-            return Ok(new ChangeEmailStep1Response
+            var response = new ChangeEmailStep1Response
             {
                 Success = true,
                 Message = _localization.GetString("ChangeEmail.OtpSentToCurrentEmail"),
-                MaskedCurrentEmail = MaskEmail(user.Email),
+                MaskedCurrentEmail = MaskEmail(user.FullName),
                 MaskedNewEmail = MaskEmail(request.NewEmail)
-            });
+            };
+
+            Console.WriteLine($"[CHANGE EMAIL INITIATE] SUCCESS - MaskedCurrentEmail: {response.MaskedCurrentEmail}, MaskedNewEmail: {response.MaskedNewEmail}");
+            Console.WriteLine("=== [CHANGE EMAIL INITIATE] Request completed successfully ===");
+            
+            return Ok(response);
         }
         catch (Exception ex)
         {
+            Console.WriteLine($"[CHANGE EMAIL INITIATE] EXCEPTION: {ex.Message}");
+            Console.WriteLine($"[CHANGE EMAIL INITIATE] Stack Trace: {ex.StackTrace}");
             return StatusCode(500, new { message = _localization.GetString("Error.Generic"), error = ex.Message });
         }
     }
