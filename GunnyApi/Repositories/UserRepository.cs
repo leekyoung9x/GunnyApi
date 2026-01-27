@@ -1026,7 +1026,7 @@ public class UserRepository : BaseRepository<User>, IUserRepository
             using var connection = _connectionFactory.CreateConnection();
 
             // Cập nhật email và set VerifiedEmail = true trong Mem_Account
-            var sql = $"UPDATE {TableName} SET Email = @NewEmail, VerifiedEmail = 1 WHERE UserId = @UserId AND Email = @OldEmail";
+            var sql = $"UPDATE {TableName} SET Fullname = @NewEmail, VerifiedEmail = 1 WHERE UserId = @UserId AND Email = @OldEmail";
             var rowsAffected = await connection.ExecuteAsync(sql, new 
             { 
                 UserId = userId,
