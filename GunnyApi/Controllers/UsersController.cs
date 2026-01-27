@@ -1205,17 +1205,23 @@ public class UsersController : BaseApiController
     {
         try
         {
+            Console.WriteLine($"=== [RESEND OTP] Step: {request.Step}, NewEmail: {request.NewEmail} ===");
+            
             // Set language from request header
             SetLanguageFromHeader();
             
             // Kiểm tra user đã đăng nhập
             if (!_userContext.UserId.HasValue)
             {
+                Console.WriteLine("[RESEND OTP] ERROR: User not authenticated");
                 return Unauthorized(new { message = _localization.GetString("Login.Unauthorized") });
             }
 
+            Console.WriteLine($"[RESEND OTP] UserId: {_userContext.UserId.Value}");
+
             if (request.Step != 1 && request.Step != 2)
             {
+                Console.WriteLine("[RESEND OTP] ERROR: Invalid step");
                 return BadRequest(new { message = _localization.GetString("ChangeEmail.InvalidStep") });
             }
 
@@ -1223,20 +1229,27 @@ public class UsersController : BaseApiController
             var user = await _userService.GetByIdAsync(_userContext.UserId.Value);
             if (user == null)
             {
+                Console.WriteLine($"[RESEND OTP] ERROR: User not found - UserId: {_userContext.UserId.Value}");
                 return NotFound(new { message = _localization.GetString("User.NotFound") });
             }
 
             // Determine emails based on step
-            string currentEmail = user.Email;
+            // Email thực tế được lưu trong FullName, không phải Email
+            string currentEmail = user.FullName;
             string newEmail = request.NewEmail ?? string.Empty;
+
+            Console.WriteLine($"[RESEND OTP] CurrentEmail (FullName): {currentEmail}");
+            Console.WriteLine($"[RESEND OTP] NewEmail from request: {newEmail}");
 
             // Validate newEmail is provided for both steps
             if (string.IsNullOrEmpty(newEmail))
             {
+                Console.WriteLine("[RESEND OTP] ERROR: NewEmail is required");
                 return BadRequest(new { message = _localization.GetString("ChangeEmail.NewEmailRequired") });
             }
 
             // Tạo OTP mới
+            Console.WriteLine($"[RESEND OTP] Creating OTP - UserId: {_userContext.UserId.Value}, CurrentEmail: {currentEmail}, NewEmail: {newEmail}, Step: {request.Step}");
             var otpResult = await _userService.CreateEmailChangeOtpAsync(
                 _userContext.UserId.Value, 
                 currentEmail, 
@@ -1246,18 +1259,26 @@ public class UsersController : BaseApiController
             
             if (!otpResult.Success)
             {
+                Console.WriteLine($"[RESEND OTP] ERROR: Failed to create OTP - {otpResult.Message}");
                 return BadRequest(new { message = otpResult.Message });
             }
+
+            Console.WriteLine($"[RESEND OTP] OTP created successfully - Code: {otpResult.OtpCode}");
 
             // Gửi OTP theo step
             if (request.Step == 1)
             {
+                Console.WriteLine($"[RESEND OTP] Sending OTP to OLD email: {currentEmail}");
                 await SendOldEmailOtpEmail(currentEmail, user.Username, otpResult.OtpCode);
             }
             else
             {
+                Console.WriteLine($"[RESEND OTP] Sending OTP to NEW email: {newEmail}");
                 await SendNewEmailOtpEmail(newEmail, user.Username, otpResult.OtpCode);
             }
+
+            Console.WriteLine("[RESEND OTP] OTP email sent successfully");
+            Console.WriteLine("=== [RESEND OTP] Request completed ===");
 
             // Trả về response
             return Ok(new ResendOtpResponse
