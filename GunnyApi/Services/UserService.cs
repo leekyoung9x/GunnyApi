@@ -830,7 +830,7 @@ public class UserService : BaseService<User>, IUserService
                 return new ForgotPasswordResponse
                 {
                     Success = true,
-                    Message = "Nếu email tồn tại, chúng tôi đã gửi link đặt lại mật khẩu đến email của bạn."
+                    Message = _localization.GetString("ForgotPassword.EmailSent")
                 };
             }
 
@@ -844,7 +844,7 @@ public class UserService : BaseService<User>, IUserService
             return new ForgotPasswordResponse
             {
                 Success = true,
-                Message = "Nếu email tồn tại, chúng tôi đã gửi link đặt lại mật khẩu đến email của bạn.",
+                Message = _localization.GetString("ForgotPassword.EmailSent"),
                 Token = token // Trả về token để controller gửi email
             };
         }
@@ -853,7 +853,7 @@ public class UserService : BaseService<User>, IUserService
             return new ForgotPasswordResponse
             {
                 Success = false,
-                Message = $"Lỗi khi xử lý yêu cầu: {ex.Message}"
+                Message = _localization.GetString("ForgotPassword.ProcessError", ex.Message)
             };
         }
     }
@@ -870,7 +870,7 @@ public class UserService : BaseService<User>, IUserService
                 return new VerifyResetTokenResponse
                 {
                     IsValid = false,
-                    Message = "Token không hợp lệ"
+                    Message = _localization.GetString("ResetPassword.TokenInvalid")
                 };
             }
 
@@ -883,14 +883,14 @@ public class UserService : BaseService<User>, IUserService
                 return new VerifyResetTokenResponse
                 {
                     IsValid = false,
-                    Message = "Token không hợp lệ hoặc đã hết hạn"
+                    Message = _localization.GetString("ResetPassword.TokenExpired")
                 };
             }
 
             return new VerifyResetTokenResponse
             {
                 IsValid = true,
-                Message = "Token hợp lệ",
+                Message = _localization.GetString("ResetPassword.TokenValid"),
                 Email = passwordReset.Email
             };
         }
@@ -899,7 +899,7 @@ public class UserService : BaseService<User>, IUserService
             return new VerifyResetTokenResponse
             {
                 IsValid = false,
-                Message = $"Lỗi khi xác thực token: {ex.Message}"
+                Message = _localization.GetString("ResetPassword.VerifyTokenError", ex.Message)
             };
         }
     }
@@ -917,7 +917,7 @@ public class UserService : BaseService<User>, IUserService
                 return new ResetPasswordResponse
                 {
                     Success = false,
-                    Message = "Token không hợp lệ"
+                    Message = _localization.GetString("ResetPassword.TokenInvalid")
                 };
             }
 
@@ -935,7 +935,7 @@ public class UserService : BaseService<User>, IUserService
                 return new ResetPasswordResponse
                 {
                     Success = false,
-                    Message = "Mật khẩu xác nhận không khớp"
+                    Message = _localization.GetString("Password.PasswordsDoNotMatch")
                 };
             }
 
@@ -973,7 +973,7 @@ public class UserService : BaseService<User>, IUserService
                 return new ResetPasswordResponse
                 {
                     Success = true,
-                    Message = "Đặt lại mật khẩu thành công!"
+                    Message = _localization.GetString("ResetPassword.Success")
                 };
             }
             else
@@ -981,7 +981,7 @@ public class UserService : BaseService<User>, IUserService
                 return new ResetPasswordResponse
                 {
                     Success = false,
-                    Message = "Không thể đặt lại mật khẩu. Vui lòng thử lại."
+                    Message = _localization.GetString("ResetPassword.Failed")
                 };
             }
         }
@@ -990,7 +990,7 @@ public class UserService : BaseService<User>, IUserService
             return new ResetPasswordResponse
             {
                 Success = false,
-                Message = $"Lỗi khi đặt lại mật khẩu: {ex.Message}"
+                Message = _localization.GetString("ResetPassword.Error", ex.Message)
             };
         }
     }

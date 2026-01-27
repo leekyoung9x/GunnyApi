@@ -116,6 +116,18 @@ public class LocalizationService : ILocalizationService
             ["ForgotPassword.EmailIgnore"] = "Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này. Mật khẩu của bạn sẽ không thay đổi.",
             ["ForgotPassword.EmailAutoMessage"] = "Email này được gửi tự động, vui lòng không trả lời.",
             ["ForgotPassword.EmailCopyright"] = "&copy; 2026 Gunny Game. All rights reserved.",
+            ["ForgotPassword.EmailSent"] = "Nếu email tồn tại, chúng tôi đã gửi link đặt lại mật khẩu đến email của bạn.",
+            ["ForgotPassword.ProcessError"] = "Lỗi khi xử lý yêu cầu: {0}",
+            ["User.EmailInvalid"] = "Email không hợp lệ",
+            
+            // Reset Password messages
+            ["ResetPassword.TokenInvalid"] = "Token không hợp lệ",
+            ["ResetPassword.TokenExpired"] = "Token không hợp lệ hoặc đã hết hạn",
+            ["ResetPassword.TokenValid"] = "Token hợp lệ",
+            ["ResetPassword.VerifyTokenError"] = "Lỗi khi xác thực token: {0}",
+            ["ResetPassword.Success"] = "Đặt lại mật khẩu thành công!",
+            ["ResetPassword.Failed"] = "Không thể đặt lại mật khẩu. Vui lòng thử lại.",
+            ["ResetPassword.Error"] = "Lỗi khi đặt lại mật khẩu: {0}",
             
             // Profile update messages
             ["Profile.UsernameRequired"] = "Username không được rỗng",
@@ -254,6 +266,18 @@ public class LocalizationService : ILocalizationService
             ["ForgotPassword.EmailIgnore"] = "If you did not request a password reset, please ignore this email. Your password will not be changed.",
             ["ForgotPassword.EmailAutoMessage"] = "This is an automated email, please do not reply.",
             ["ForgotPassword.EmailCopyright"] = "&copy; 2026 Gunny Game. All rights reserved.",
+            ["ForgotPassword.EmailSent"] = "If the email exists, we have sent a password reset link to your email.",
+            ["ForgotPassword.ProcessError"] = "Error processing request: {0}",
+            ["User.EmailInvalid"] = "Invalid email",
+            
+            // Reset Password messages
+            ["ResetPassword.TokenInvalid"] = "Invalid token",
+            ["ResetPassword.TokenExpired"] = "Token is invalid or has expired",
+            ["ResetPassword.TokenValid"] = "Token is valid",
+            ["ResetPassword.VerifyTokenError"] = "Error verifying token: {0}",
+            ["ResetPassword.Success"] = "Password reset successfully!",
+            ["ResetPassword.Failed"] = "Unable to reset password. Please try again.",
+            ["ResetPassword.Error"] = "Error resetting password: {0}",
             
             // Profile update messages
             ["Profile.UsernameRequired"] = "Username is required",
