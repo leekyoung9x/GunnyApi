@@ -1,16 +1,17 @@
+using Dapper;
+using GunnyApi.Infrastructure.Context;
 using GunnyApi.Infrastructure.Controllers;
+using GunnyApi.Infrastructure.Services;
+using GunnyApi.Infrastructure.Settings;
 using GunnyApi.Models;
+using GunnyApi.Repositories;
+using GunnyApi.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Text.Json;
-using GunnyApi.Infrastructure.Context;
-using System.Text;
-using Dapper;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Options;
-using GunnyApi.Infrastructure.Settings;
-using GunnyApi.Infrastructure.Services;
-using GunnyApi.Repositories;
+using System.Text;
+using System.Text.Json;
 
 namespace GunnyApi.Controllers;
 
@@ -25,6 +26,7 @@ public class PaymentController : BaseApiController
     private readonly PaymentTiersSettings _paymentTiersSettings;
     private readonly ILocalizationService _localization;
     private readonly IPaymentRepository _paymentRepository;
+    private readonly IChargeMoneyService _chargeMoneyService;
 
     public PaymentController(
         ILogger<PaymentController> logger,
@@ -33,7 +35,8 @@ public class PaymentController : BaseApiController
         IHttpClientFactory httpClientFactory,
         IOptions<PaymentTiersSettings> paymentTiersSettings,
         ILocalizationService localization,
-        IPaymentRepository paymentRepository)
+        IPaymentRepository paymentRepository,
+        IChargeMoneyService chargeMoneyService)
     {
         _logger = logger;
         _configuration = configuration;
@@ -42,6 +45,7 @@ public class PaymentController : BaseApiController
         _paymentTiersSettings = paymentTiersSettings.Value;
         _localization = localization;
         _paymentRepository = paymentRepository;
+        _chargeMoneyService = chargeMoneyService;
     }
 
     /// <summary>
@@ -79,11 +83,11 @@ public class PaymentController : BaseApiController
                         giftToken = _paymentTiersSettings.EnableGiftTokenReward ? t.GiftToken : 0 // Lễ Kim (nếu enabled trong config)
                     },
                     t.BonusPercent,
-                    DisplayName = !string.IsNullOrEmpty(t.DisplayNameKey) 
-                        ? _localization.GetString(t.DisplayNameKey) 
+                    DisplayName = !string.IsNullOrEmpty(t.DisplayNameKey)
+                        ? _localization.GetString(t.DisplayNameKey)
                         : t.DisplayName,
-                    Description = !string.IsNullOrEmpty(t.DescriptionKey) 
-                        ? _localization.GetString(t.DescriptionKey) 
+                    Description = !string.IsNullOrEmpty(t.DescriptionKey)
+                        ? _localization.GetString(t.DescriptionKey)
                         : t.Description,
                     t.IsActive,
                     t.SortOrder
@@ -142,11 +146,11 @@ public class PaymentController : BaseApiController
                 tier.Money,
                 tier.GiftToken,
                 tier.BonusPercent,
-                DisplayName = !string.IsNullOrEmpty(tier.DisplayNameKey) 
-                    ? _localization.GetString(tier.DisplayNameKey) 
+                DisplayName = !string.IsNullOrEmpty(tier.DisplayNameKey)
+                    ? _localization.GetString(tier.DisplayNameKey)
                     : tier.DisplayName,
-                Description = !string.IsNullOrEmpty(tier.DescriptionKey) 
-                    ? _localization.GetString(tier.DescriptionKey) 
+                Description = !string.IsNullOrEmpty(tier.DescriptionKey)
+                    ? _localization.GetString(tier.DescriptionKey)
                     : tier.Description,
                 tier.IsActive,
                 tier.SortOrder
@@ -190,7 +194,7 @@ public class PaymentController : BaseApiController
             if (pageSize < 1 || pageSize > 100) pageSize = 20;
 
             var userId = _userContext.UserId.Value;
-            
+
             // Get payment histories
             var histories = await _paymentRepository.GetPaymentHistoriesByUserIdAsync(userId, pageNumber, pageSize);
             var totalCount = await _paymentRepository.GetPaymentHistoryCountByUserIdAsync(userId);
@@ -335,7 +339,7 @@ public class PaymentController : BaseApiController
 
             // Kiểm tra payment history có tồn tại và thuộc về user không
             var paymentHistory = await _paymentRepository.GetPaymentHistoryByCheckoutSessionIdAsync(request.CheckoutSessionId);
-            
+
             if (paymentHistory == null)
             {
                 return NotFound(new
@@ -396,9 +400,9 @@ public class PaymentController : BaseApiController
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogError("PayMongo API trả về lỗi khi expire: {StatusCode} - {Response}", 
+                _logger.LogError("PayMongo API trả về lỗi khi expire: {StatusCode} - {Response}",
                     response.StatusCode, responseContent);
-                
+
                 // Parse error message nếu có
                 string errorMessage = responseContent;
                 try
@@ -418,8 +422,8 @@ public class PaymentController : BaseApiController
                     // Ignore parse error
                 }
 
-                return StatusCode((int)response.StatusCode, new 
-                { 
+                return StatusCode((int)response.StatusCode, new
+                {
                     success = false,
                     message = _localization.GetString("Payment.ExpireError", errorMessage)
                 });
@@ -427,11 +431,11 @@ public class PaymentController : BaseApiController
 
             // Parse response từ PayMongo
             var payMongoResponse = JsonSerializer.Deserialize<PayMongoCheckoutSessionResponse>(
-                responseContent, 
-                new JsonSerializerOptions 
-                { 
+                responseContent,
+                new JsonSerializerOptions
+                {
                     PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-                    PropertyNameCaseInsensitive = true 
+                    PropertyNameCaseInsensitive = true
                 });
 
             if (payMongoResponse?.Data == null)
@@ -443,8 +447,8 @@ public class PaymentController : BaseApiController
             // Cập nhật status trong database
             var expiredAt = DateTime.Now;
             var updateSuccess = await _paymentRepository.UpdatePaymentStatusAsync(
-                request.CheckoutSessionId, 
-                "expired", 
+                request.CheckoutSessionId,
+                "expired",
                 expiredAt
             );
 
@@ -475,10 +479,10 @@ public class PaymentController : BaseApiController
         catch (Exception ex)
         {
             _logger.LogError(ex, "Lỗi khi expire checkout session: {CheckoutSessionId}", request.CheckoutSessionId);
-            return StatusCode(500, new 
-            { 
+            return StatusCode(500, new
+            {
                 success = false,
-                message = _localization.GetString("Payment.ExpireError", ex.Message) 
+                message = _localization.GetString("Payment.ExpireError", ex.Message)
             });
         }
     }
@@ -512,8 +516,8 @@ public class PaymentController : BaseApiController
                     request.Amount,
                     string.Join(", ", _paymentTiersSettings.Tiers.Where(t => t.IsActive).Select(t => $"{t.Amount} PHP"))
                 );
-                return BadRequest(new 
-                { 
+                return BadRequest(new
+                {
                     message = "Invalid payment amount. Amount must match one of the available tiers.",
                     requestedAmount = request.Amount,
                     availableTiers = _paymentTiersSettings.Tiers
@@ -527,7 +531,7 @@ public class PaymentController : BaseApiController
             var amountInCentavos = (int)(request.Amount * 100);
 
             _logger.LogInformation(
-                "User {Username} đang tạo checkout session - Amount: {Amount} PHP ({Centavos} centavos) - Tier: {TierId}", 
+                "User {Username} đang tạo checkout session - Amount: {Amount} PHP ({Centavos} centavos) - Tier: {TierId}",
                 username, request.Amount, amountInCentavos, matchingTier.Id);
 
             // Lấy cấu hình từ appsettings
@@ -537,7 +541,7 @@ public class PaymentController : BaseApiController
             var sendEmailReceipt = bool.Parse(_configuration["PayMongoSettings:SendEmailReceipt"] ?? "false");
             var showDescription = bool.Parse(_configuration["PayMongoSettings:ShowDescription"] ?? "true");
             var showLineItems = bool.Parse(_configuration["PayMongoSettings:ShowLineItems"] ?? "true");
-            var paymentMethods = _configuration.GetSection("PayMongoSettings:PaymentMethods").Get<List<string>>() 
+            var paymentMethods = _configuration.GetSection("PayMongoSettings:PaymentMethods").Get<List<string>>()
                 ?? new List<string> { "qrph", "card", "gcash" };
 
             if (string.IsNullOrEmpty(apiUrl) || string.IsNullOrEmpty(secretKey))
@@ -557,8 +561,8 @@ public class PaymentController : BaseApiController
                         ShowDescription = showDescription,
                         ShowLineItems = showLineItems,
                         PaymentMethodTypes = paymentMethods,
-                        Description = !string.IsNullOrEmpty(request.Description) 
-                            ? request.Description 
+                        Description = !string.IsNullOrEmpty(request.Description)
+                            ? request.Description
                             : _localization.GetString("Payment.PaymentFor", username),
                         LineItems = new List<PayMongoLineItem>
                         {
@@ -566,15 +570,15 @@ public class PaymentController : BaseApiController
                             {
                                 Currency = currency,
                                 Amount = amountInCentavos, // Amount đã convert sang centavos (VD: 50 PHP * 100 = 5000 centavos)
-                                Description = !string.IsNullOrEmpty(request.Description) 
-                                    ? request.Description 
+                                Description = !string.IsNullOrEmpty(request.Description)
+                                    ? request.Description
                                     : _localization.GetString("Payment.TopupFor", username),
-                                Name = !string.IsNullOrEmpty(request.ProductName) 
-                                    ? request.ProductName 
+                                Name = !string.IsNullOrEmpty(request.ProductName)
+                                    ? request.ProductName
                                     : "Nạp tiền",
                                 Quantity = request.Quantity > 0 ? request.Quantity : 1,
-                                Images = !string.IsNullOrEmpty(request.ImageUrl) 
-                                    ? new List<string> { request.ImageUrl } 
+                                Images = !string.IsNullOrEmpty(request.ImageUrl)
+                                    ? new List<string> { request.ImageUrl }
                                     : null
                             }
                         },
@@ -613,22 +617,22 @@ public class PaymentController : BaseApiController
 
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogError("PayMongo API trả về lỗi: {StatusCode} - {Response}", 
+                _logger.LogError("PayMongo API trả về lỗi: {StatusCode} - {Response}",
                     response.StatusCode, responseContent);
-                return StatusCode((int)response.StatusCode, new 
-                { 
-                    message = _localization.GetString("Payment.CannotCreateSession"), 
-                    error = responseContent 
+                return StatusCode((int)response.StatusCode, new
+                {
+                    message = _localization.GetString("Payment.CannotCreateSession"),
+                    error = responseContent
                 });
             }
 
             // Parse response từ PayMongo
             var payMongoResponse = JsonSerializer.Deserialize<PayMongoCheckoutSessionResponse>(
-                responseContent, 
-                new JsonSerializerOptions 
-                { 
+                responseContent,
+                new JsonSerializerOptions
+                {
                     PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
-                    PropertyNameCaseInsensitive = true 
+                    PropertyNameCaseInsensitive = true
                 });
 
             if (payMongoResponse?.Data == null)
@@ -670,7 +674,7 @@ public class PaymentController : BaseApiController
                 };
 
                 var paymentHistoryId = await _paymentRepository.CreatePaymentHistoryAsync(paymentHistory);
-                
+
                 _logger.LogInformation(
                     "Đã lưu payment history với ID: {PaymentHistoryId} cho checkout session: {CheckoutSessionId}",
                     paymentHistoryId, payMongoResponse.Data.Id);
@@ -760,7 +764,7 @@ public class PaymentController : BaseApiController
     private async Task HandlePaymentPaid(PayMongoEventData data)
     {
         _logger.LogInformation("Processing payment paid event: {EventId}", data.Id);
-        
+
         var eventAttributes = data.Attributes;
         if (eventAttributes?.Data == null)
         {
@@ -784,7 +788,7 @@ public class PaymentController : BaseApiController
         }
 
         var paymentAttrs = payment.Attributes;
-        
+
         // Log thông tin chi tiết
         _logger.LogInformation(
             "Payment successful - Checkout ID: {CheckoutId}, Payment ID: {PaymentId}, Amount: {Amount} {Currency}, Net: {NetAmount}, Fee: {Fee}, Status: {Status}, Method: {Method}",
@@ -830,9 +834,16 @@ public class PaymentController : BaseApiController
             // Lấy amount từ payment (đơn vị: centavos cho PHP, tùy theo currency)
             var amountInCentavos = paymentAttrs.Amount;
 
-            // Lấy username từ metadata
+            // Lấy username từ metadata (ưu tiên từ payment, sau đó từ checkout session)
             string? username = null;
-            if (checkoutSession.Metadata != null && checkoutSession.Metadata.ContainsKey("username"))
+
+            // Thử lấy từ payment metadata trước (cấu trúc mới)
+            if (paymentAttrs.Metadata != null && paymentAttrs.Metadata.ContainsKey("username"))
+            {
+                username = paymentAttrs.Metadata["username"]?.ToString();
+            }
+            // Fallback: Lấy từ checkout session metadata (cấu trúc cũ)
+            else if (checkoutSession.Metadata != null && checkoutSession.Metadata.ContainsKey("username"))
             {
                 username = checkoutSession.Metadata["username"]?.ToString();
             }
@@ -842,6 +853,8 @@ public class PaymentController : BaseApiController
                 _logger.LogWarning("Không tìm thấy username trong metadata để cộng tiền");
                 return;
             }
+
+            _logger.LogInformation("Username from metadata: {Username}", username);
 
             // Tìm payment tier tương ứng với số tiền đã thanh toán
             var matchedTier = _paymentTiersSettings.Tiers
@@ -865,6 +878,32 @@ public class PaymentController : BaseApiController
                 matchedTier.GiftToken
             );
 
+            // Gọi ChargeMoneyAsync để nạp tiền vào game server
+            var chargeResult = await _chargeMoneyService.ChargeMoneyAsync(
+                username: username,
+                money: matchedTier.Money,
+                type: "paymongo",
+                needMoney: matchedTier.Amount // Số tiền thực tế thanh toán (PHP)
+            );
+
+            if (!chargeResult.Success)
+            {
+                _logger.LogError(
+                    "Không thể nạp tiền qua ChargeMoneyAsync cho user: {Username}. Lỗi: {Error}",
+                    username,
+                    chargeResult.Message
+                );
+                return;
+            }
+
+            _logger.LogInformation(
+                "Đã nạp {Money} Xu (từ tier {TierId}) vào tài khoản cho Username: {Username}. Payment amount: {PaymentAmount} centavos",
+                matchedTier.Money,
+                matchedTier.Id,
+                username,
+                amountInCentavos
+            );
+
             var memberConnectionString = _configuration.GetConnectionString("DefaultConnection");
             using var memberConnection = new SqlConnection(memberConnectionString);
             await memberConnection.OpenAsync();
@@ -882,103 +921,73 @@ public class PaymentController : BaseApiController
                 return;
             }
 
-            // Cộng Money từ config tier vào Mem_Account
-            var updateMoneySql = "UPDATE Mem_Account SET Money = Money + @Money WHERE UserID = @UserId";
-            var rowsAffected = await memberConnection.ExecuteAsync(
-                updateMoneySql,
-                new { UserId = userId.Value, Money = matchedTier.Money }
-            );
+            // Cộng Gold và GiftToken vào Tank database nếu được bật trong config
+            bool shouldAddGold = _paymentTiersSettings.EnableGoldReward && matchedTier.Gold > 0;
+            bool shouldAddGiftToken = _paymentTiersSettings.EnableGiftTokenReward && matchedTier.GiftToken > 0;
 
-            if (rowsAffected > 0)
+            if (shouldAddGold || shouldAddGiftToken)
             {
-                // Lấy số dư mới
-                var newBalance = await memberConnection.ExecuteScalarAsync<long>(
-                    "SELECT Money FROM Mem_Account WHERE UserID = @UserId",
-                    new { UserId = userId.Value }
-                );
-
-                _logger.LogInformation(
-                    "Đã cộng {Money} Xu (từ tier {TierId}) vào tài khoản UserID: {UserId}, Username: {Username}. Số dư mới: {NewBalance}. Payment amount: {PaymentAmount} centavos",
-                    matchedTier.Money,
-                    matchedTier.Id,
-                    userId.Value,
-                    username,
-                    newBalance,
-                    amountInCentavos
-                );
-
-                // Cộng Gold và GiftToken vào Tank database nếu được bật trong config
-                bool shouldAddGold = _paymentTiersSettings.EnableGoldReward && matchedTier.Gold > 0;
-                bool shouldAddGiftToken = _paymentTiersSettings.EnableGiftTokenReward && matchedTier.GiftToken > 0;
-
-                if (shouldAddGold || shouldAddGiftToken)
+                try
                 {
-                    try
+                    var tankConnectionString = _configuration.GetConnectionString("TankConnection");
+                    using var tankConnection = new SqlConnection(tankConnectionString);
+                    await tankConnection.OpenAsync();
+
+                    // Xây dựng câu SQL động dựa trên config
+                    var updateFields = new List<string>();
+                    var parameters = new DynamicParameters();
+                    parameters.Add("Username", username);
+
+                    if (shouldAddGold)
                     {
-                        var tankConnectionString = _configuration.GetConnectionString("TankConnection");
-                        using var tankConnection = new SqlConnection(tankConnectionString);
-                        await tankConnection.OpenAsync();
-
-                        // Xây dựng câu SQL động dựa trên config
-                        var updateFields = new List<string>();
-                        var parameters = new DynamicParameters();
-                        parameters.Add("Username", username);
-
-                        if (shouldAddGold)
-                        {
-                            updateFields.Add("Gold = Gold + @Gold");
-                            parameters.Add("Gold", matchedTier.Gold);
-                        }
-
-                        if (shouldAddGiftToken)
-                        {
-                            updateFields.Add("GiftToken = GiftToken + @GiftToken");
-                            parameters.Add("GiftToken", matchedTier.GiftToken);
-                        }
-
-                        var updateTankSql = $@"
-                            UPDATE dbo.Users 
-                            SET {string.Join(", ", updateFields)}
-                            WHERE UserName = @Username";
-
-                        var tankRowsAffected = await tankConnection.ExecuteAsync(updateTankSql, parameters);
-
-                        if (tankRowsAffected > 0)
-                        {
-                            var rewardParts = new List<string>();
-                            if (shouldAddGold) rewardParts.Add($"{matchedTier.Gold} Gold");
-                            if (shouldAddGiftToken) rewardParts.Add($"{matchedTier.GiftToken} Lễ Kim");
-
-                            _logger.LogInformation(
-                                "Đã cộng {Rewards} vào Tank database cho user: {Username}",
-                                string.Join(" và ", rewardParts),
-                                username
-                            );
-                        }
-                        else
-                        {
-                            _logger.LogWarning(
-                                "Không tìm thấy user trong Tank database hoặc không thể cộng Gold/GiftToken: {Username}",
-                                username
-                            );
-                        }
+                        updateFields.Add("Gold = Gold + @Gold");
+                        parameters.Add("Gold", matchedTier.Gold);
                     }
-                    catch (Exception tankEx)
+
+                    if (shouldAddGiftToken)
                     {
-                        _logger.LogError(tankEx, "Lỗi khi cộng Gold/GiftToken vào Tank database cho user: {Username}", username);
+                        updateFields.Add("GiftToken = GiftToken + @GiftToken");
+                        parameters.Add("GiftToken", matchedTier.GiftToken);
+                    }
+
+                    var updateTankSql = $@"
+                        UPDATE dbo.Users 
+                        SET {string.Join(", ", updateFields)}
+                        WHERE UserName = @Username";
+
+                    var tankRowsAffected = await tankConnection.ExecuteAsync(updateTankSql, parameters);
+
+                    if (tankRowsAffected > 0)
+                    {
+                        var rewardParts = new List<string>();
+                        if (shouldAddGold) rewardParts.Add($"{matchedTier.Gold} Gold");
+                        if (shouldAddGiftToken) rewardParts.Add($"{matchedTier.GiftToken} Lễ Kim");
+
+                        _logger.LogInformation(
+                            "Đã cộng {Rewards} vào Tank database cho user: {Username}",
+                            string.Join(" và ", rewardParts),
+                            username
+                        );
+                    }
+                    else
+                    {
+                        _logger.LogWarning(
+                            "Không tìm thấy user trong Tank database hoặc không thể cộng Gold/GiftToken: {Username}",
+                            username
+                        );
                     }
                 }
-            }
-            else
-            {
-                _logger.LogWarning("Không thể cộng tiền vào tài khoản UserID: {UserId}", userId.Value);
+                catch (Exception tankEx)
+                {
+                    _logger.LogError(tankEx, "Lỗi khi cộng Gold/GiftToken vào Tank database cho user: {Username}", username);
+                }
             }
 
             // Cập nhật Payment_History
             try
             {
                 var paymentHistory = await _paymentRepository.GetPaymentHistoryByCheckoutSessionIdAsync(eventAttributes.Data.Id ?? "");
-                
+
                 if (paymentHistory != null)
                 {
                     paymentHistory.PaymentIntentId = payment.Attributes.PaymentIntentId ?? string.Empty;
@@ -1004,22 +1013,24 @@ public class PaymentController : BaseApiController
                             id = eventAttributes.Data.Id,
                             paymentMethod = checkoutSession.PaymentMethodUsed,
                             lineItems = checkoutSession.LineItems
+                        },
+                        chargeResult = new
+                        {
+                            success = chargeResult.Success,
+                            message = chargeResult.Message,
+                            content = chargeResult.Content
                         }
                     });
 
                     await _paymentRepository.UpdatePaymentHistoryAsync(paymentHistory);
-                    
+
                     // Mark reward as processed
-                    bool rewardSuccess = rowsAffected > 0;
-                    string? rewardError = null;
-                    
-                    if (!rewardSuccess)
-                    {
-                        rewardError = "Không thể cộng tiền vào Mem_Account";
-                    }
-                    
-                    await _paymentRepository.MarkRewardAsProcessedAsync(paymentHistory.Id, rewardSuccess, rewardError);
-                    
+                    await _paymentRepository.MarkRewardAsProcessedAsync(
+                        paymentHistory.Id,
+                        chargeResult.Success,
+                        chargeResult.Success ? null : chargeResult.Message
+                    );
+
                     _logger.LogInformation(
                         "Đã cập nhật payment history ID: {PaymentHistoryId} với status: paid, paymentId: {PaymentId}",
                         paymentHistory.Id, payment.Id);
@@ -1048,7 +1059,7 @@ public class PaymentController : BaseApiController
     private async Task HandlePaymentFailed(PayMongoEventData data)
     {
         _logger.LogWarning("Processing payment failed event: {EventId}", data.Id);
-        
+
         var checkoutSession = data.Attributes?.Data?.Attributes;
         if (checkoutSession != null)
         {
@@ -1064,21 +1075,21 @@ public class PaymentController : BaseApiController
         try
         {
             var paymentHistory = await _paymentRepository.GetPaymentHistoryByCheckoutSessionIdAsync(data.Attributes?.Data?.Id ?? "");
-            
+
             if (paymentHistory != null)
             {
                 var payment = checkoutSession?.Payments?.FirstOrDefault();
-                
+
                 paymentHistory.Status = "failed";
                 paymentHistory.EventType = data.Attributes?.Type;
                 paymentHistory.EventId = data.Id;
                 paymentHistory.UpdatedAt = DateTime.Now;
-                
+
                 if (payment?.Id != null)
                 {
                     paymentHistory.PaymentId = payment.Id;
                 }
-                
+
                 // Get failure information if available
                 if (payment?.Attributes != null)
                 {
@@ -1087,7 +1098,7 @@ public class PaymentController : BaseApiController
                 }
 
                 await _paymentRepository.UpdatePaymentHistoryAsync(paymentHistory);
-                
+
                 _logger.LogInformation(
                     "Đã cập nhật payment history ID: {PaymentHistoryId} với status: failed",
                     paymentHistory.Id);
@@ -1097,7 +1108,7 @@ public class PaymentController : BaseApiController
         {
             _logger.LogError(ex, "Lỗi khi cập nhật payment history cho failed payment");
         }
-        
+
         await Task.CompletedTask;
     }
 
@@ -1107,10 +1118,10 @@ public class PaymentController : BaseApiController
     private async Task HandlePaymentRefunded(PayMongoEventData data)
     {
         _logger.LogInformation("Processing payment refunded event: {EventId}", data.Id);
-        
+
         var checkoutSession = data.Attributes?.Data?.Attributes;
         var payment = checkoutSession?.Payments?.FirstOrDefault();
-        
+
         if (payment?.Attributes != null)
         {
             _logger.LogInformation(
@@ -1120,12 +1131,12 @@ public class PaymentController : BaseApiController
                 payment.Attributes.Currency
             );
         }
-        
+
         // TODO: Implement your business logic here
         // - Trừ tiền trong tài khoản user (số tiền: payment.Attributes.Amount)
         // - Cập nhật trạng thái đơn hàng thành refunded
         // - Gửi email thông báo refund
-        
+
         await Task.CompletedTask;
     }
 
@@ -1135,7 +1146,7 @@ public class PaymentController : BaseApiController
     private async Task HandleSourceChargeable(PayMongoEventData data)
     {
         _logger.LogInformation("Processing source chargeable event: {EventId}", data.Id);
-        
+
         var checkoutSession = data.Attributes?.Data?.Attributes;
         if (checkoutSession != null)
         {
@@ -1145,11 +1156,11 @@ public class PaymentController : BaseApiController
                 checkoutSession.PaymentMethodUsed
             );
         }
-        
+
         // TODO: Implement your business logic here
         // - Tạo payment từ source (cho e-wallet như GCash, GrabPay)
         // - Cập nhật trạng thái đơn hàng
-        
+
         await Task.CompletedTask;
     }
 
@@ -1164,31 +1175,31 @@ public class PaymentController : BaseApiController
         try
         {
             // Serialize ra JSON với format đẹp
-            var jsonOptions = new JsonSerializerOptions 
-            { 
+            var jsonOptions = new JsonSerializerOptions
+            {
                 WriteIndented = true,
                 PropertyNamingPolicy = JsonNamingPolicy.CamelCase
             };
-            
+
             string jsonString = JsonSerializer.Serialize(webhookData, jsonOptions);
-            
+
             // Log ra console
             Console.WriteLine("=== PAYMONGO WEBHOOK DEBUG ===");
             Console.WriteLine(jsonString);
             Console.WriteLine("=== END WEBHOOK DEBUG ===");
-            
+
             // Log vào logger
             _logger.LogInformation("PayMongo Webhook Debug - Raw JSON: {Json}", jsonString);
-            
+
             // Lấy thêm headers để debug
             var headers = Request.Headers.ToDictionary(h => h.Key, h => h.Value.ToString());
             var headersJson = JsonSerializer.Serialize(headers, jsonOptions);
             Console.WriteLine("=== WEBHOOK HEADERS ===");
             Console.WriteLine(headersJson);
             Console.WriteLine("=== END HEADERS ===");
-            
-            return Ok(new 
-            { 
+
+            return Ok(new
+            {
                 message = "Debug webhook received - check console output",
                 receivedAt = DateTime.UtcNow,
                 dataReceived = true
@@ -1214,14 +1225,14 @@ public class PaymentController : BaseApiController
             // Đọc raw body
             using var reader = new StreamReader(Request.Body);
             var rawBody = await reader.ReadToEndAsync();
-            
+
             // Log ra console
             Console.WriteLine("=== PAYMONGO RAW BODY ===");
             Console.WriteLine(rawBody);
             Console.WriteLine("=== END RAW BODY ===");
-            
+
             _logger.LogInformation("PayMongo Raw Body: {Body}", rawBody);
-            
+
             // Parse và format lại
             try
             {
@@ -1235,7 +1246,7 @@ public class PaymentController : BaseApiController
             {
                 Console.WriteLine("Could not parse as JSON");
             }
-            
+
             return Ok(new { message = "Raw webhook received", timestamp = DateTime.UtcNow });
         }
         catch (Exception ex)
@@ -1252,8 +1263,8 @@ public class PaymentController : BaseApiController
     [AllowAnonymous]
     public IActionResult GetStatus()
     {
-        return Ok(new 
-        { 
+        return Ok(new
+        {
             status = "active",
             service = "Payment Controller",
             timestamp = DateTime.UtcNow,
