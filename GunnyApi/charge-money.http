@@ -1,0 +1,146 @@
+### Charge Money API Examples
+
+# Lấy token trước (Login)
+POST http://localhost:5000/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "testuser",
+  "password": "password123"
+}
+
+###
+
+# Charge Money - Success Case
+POST http://localhost:5000/api/users/charge-money
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+Accept-Language: vi-VN
+
+{
+  "money": 10000,
+  "type": "paymongo",
+  "needMoney": 299.00
+}
+
+###
+
+# Charge Money - English Language
+POST http://localhost:5000/api/users/charge-money
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+Accept-Language: en-US
+
+{
+  "money": 5000,
+  "type": "direct",
+  "needMoney": 149.00
+}
+
+###
+
+# Charge Money - Missing ChargeID (Error)
+POST http://localhost:5000/api/users/charge-money
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+{
+  "money": -100,
+  "type": "paymongo",
+  "needMoney": 299.00
+}
+
+###
+
+# Charge Money - Missing Username (Error)
+POST http://localhost:5000/api/users/charge-money
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+{
+  "money": 10000,
+  "type": "paymongo",
+  "needMoney": 299.00
+}
+
+###
+
+# Charge Money - Invalid Amount (Error)
+POST http://localhost:5000/api/users/charge-money
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+{
+  "money": 0,
+  "type": "paymongo",
+  "needMoney": 299.00
+}
+
+###
+
+# Charge Money - Large Amount
+POST http://localhost:5000/api/users/charge-money
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+{
+  "money": 100000,
+  "type": "bank",
+  "needMoney": 2999.00
+}
+
+###
+
+# Charge Money - Different Payment Types
+
+## PayMongo
+POST http://localhost:5000/api/users/charge-money
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+{
+  "money": 15000,
+  "type": "paymongo_gcash",
+  "needMoney": 449.00
+}
+
+###
+
+## Bank Transfer
+POST http://localhost:5000/api/users/charge-money
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+{
+  "money": 20000,
+  "type": "bank_transfer",
+  "needMoney": 599.00
+}
+
+###
+
+## Direct Charge
+POST http://localhost:5000/api/users/charge-money
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+{
+  "money": 30000,
+  "type": "direct_charge",
+  "needMoney": 899.00
+}
+
+###
+
+# Test với timestamp làm ChargeID
+@timestamp = {{$timestamp}}
+
+POST http://localhost:5000/api/users/charge-money
+Content-Type: application/json
+Authorization: Bearer YOUR_JWT_TOKEN_HERE
+
+{
+  "money": 10000,
+  "type": "test",
+  "needMoney": 299.00
+}

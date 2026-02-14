@@ -78,6 +78,13 @@ public class LocalizationService : ILocalizationService
             ["Server.CreateKeyError"] = "Có lỗi xảy ra khi tạo key: {0}",
             ["Server.UsernameRequired"] = "Username không được để trống",
             ["Server.LoginGameError"] = "Có lỗi xảy ra: {0}",
+            ["Server.ChargeIDRequired"] = "Mã giao dịch không được để trống",
+            ["Server.InvalidAmount"] = "Số tiền không hợp lệ",
+            ["Server.UserIDRequired"] = "UserID không được để trống",
+            ["Server.ChargeSuccess"] = "Nạp tiền thành công",
+            ["Server.ChargeFailed"] = "Nạp tiền thất bại: {0}",
+            ["Server.ChargeError"] = "Có lỗi xảy ra khi nạp tiền: {0}",
+            ["Server.PlayerNotFound"] = "Không tìm thấy thông tin người chơi",
             
             // Payment messages
             ["Payment.CreateCheckoutSuccess"] = "Tạo phiên thanh toán thành công",
@@ -289,6 +296,13 @@ public class LocalizationService : ILocalizationService
             ["Server.CreateKeyError"] = "An error occurred while creating key: {0}",
             ["Server.UsernameRequired"] = "Username is required",
             ["Server.LoginGameError"] = "An error occurred: {0}",
+            ["Server.ChargeIDRequired"] = "Transaction ID is required",
+            ["Server.InvalidAmount"] = "Invalid amount",
+            ["Server.UserIDRequired"] = "UserID is required",
+            ["Server.ChargeSuccess"] = "Charge successful",
+            ["Server.ChargeFailed"] = "Charge failed: {0}",
+            ["Server.ChargeError"] = "An error occurred during charge: {0}",
+            ["Server.PlayerNotFound"] = "Player information not found",
             
             // Payment messages
             ["Payment.CreateCheckoutSuccess"] = "Checkout session created successfully",

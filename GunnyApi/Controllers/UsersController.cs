@@ -24,6 +24,7 @@ public class UsersController : BaseApiController
     private readonly IUserContext _userContext;
     private readonly IServerService _serverService;
     private readonly ILocalizationService _localization;
+    private readonly IChargeMoneyService _chargeMoneyService;
 
     public UsersController(
         IUserService userService,
@@ -31,7 +32,8 @@ public class UsersController : BaseApiController
         IHttpClientService httpClientService,
         IUserContext userContext,
         IServerService serverService,
-        ILocalizationService localization)
+        ILocalizationService localization,
+        IChargeMoneyService chargeMoneyService)
     {
         _userService = userService;
         _gameSettings = gameSettings.Value;
@@ -39,6 +41,7 @@ public class UsersController : BaseApiController
         _userContext = userContext;
         _serverService = serverService;
         _localization = localization;
+        _chargeMoneyService = chargeMoneyService;
     }
 
     /// <summary>
@@ -518,7 +521,7 @@ public class UsersController : BaseApiController
         try
         {
             // Lấy username từ token hoặc từ request
-            var username = GetUsernameFromToken();
+            var username = _userContext.Username;
             
             // Nếu không có username từ token, kiểm tra request
             if (string.IsNullOrEmpty(username))
@@ -599,6 +602,64 @@ public class UsersController : BaseApiController
             {
                 Success = false,
                 Message = _localization.GetString("Server.LoginGameError", ex.Message)
+            });
+        }
+    }
+
+    /// <summary>
+    /// Charge Money API - Nạp tiền vào tài khoản game
+    /// </summary>
+    [HttpPost("charge-money")]
+    public async Task<IActionResult> ChargeMoney([FromBody] ChargeMoneyRequest request)
+    {
+        try
+        {
+            // Lấy username từ token (UserContext)
+            var username = _userContext.Username;
+            
+            // Validate user context
+            if (string.IsNullOrEmpty(username))
+            {
+                return BadRequest(new ChargeMoneyResponse
+                {
+                    Success = false,
+                    Message = _localization.GetString("Server.UsernameRequired")
+                });
+            }
+
+            // Gọi service để xử lý charge money (service sẽ tự lấy userID từ username)
+            var result = await _chargeMoneyService.ChargeMoneyAsync(
+                username,
+                request.Money,
+                request.Type,
+                request.NeedMoney
+            );
+
+            if (result.Success)
+            {
+                return Ok(result);
+            }
+            else
+            {
+                // Nếu là validation error, return BadRequest
+                if (result.Message.Contains("không được") || 
+                    result.Message.Contains("required") || 
+                    result.Message.Contains("không hợp lệ") ||
+                    result.Message.Contains("Invalid"))
+                {
+                    return BadRequest(result);
+                }
+                
+                // Các lỗi khác return Ok với success = false
+                return Ok(result);
+            }
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500, new ChargeMoneyResponse
+            {
+                Success = false,
+                Message = _localization.GetString("Server.ChargeError", ex.Message)
             });
         }
     }

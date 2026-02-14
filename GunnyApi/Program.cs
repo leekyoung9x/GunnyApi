@@ -112,6 +112,7 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IServerRepository, ServerRepository>();
 builder.Services.AddScoped<IServerService, ServerService>();
 builder.Services.AddScoped<IPaymentRepository, PaymentRepository>();
+builder.Services.AddScoped<IChargeMoneyService, ChargeMoneyService>();
 
 // Register UserContext
 builder.Services.AddScoped<GunnyApi.Infrastructure.Context.IUserContext, GunnyApi.Infrastructure.Context.UserContext>();
